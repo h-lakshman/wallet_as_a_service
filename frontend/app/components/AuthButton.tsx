@@ -75,6 +75,7 @@ export default function AuthButton({
   };
 
   return (
+    //@ts-ignore
     <Button {...buttonProps}>
       {session?.user
         ? buttonStyle === "white"
