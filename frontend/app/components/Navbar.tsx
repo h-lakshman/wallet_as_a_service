@@ -1,23 +1,18 @@
 "use client";
 
-import {
-  AppBar,
-  Box,
-  Button,
-  Container,
-  Stack,
-  Toolbar,
-  Typography,
-} from "@mui/material";
-import { AccountBalanceWallet } from "@mui/icons-material";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { AppBar, Container, Stack, Toolbar, Typography } from "@mui/material";
+import AuthButton from "./AuthButton";
 
 export default function Navbar() {
-  const session = useSession();
   return (
     <AppBar
       position="fixed"
-      sx={{ bgcolor: "rgba(255, 255, 255, 0.8)", backdropFilter: "blur(20px)" }}
+      sx={{
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(8px)",
+        borderBottom: "1px solid rgba(0, 0, 0, 0.08)",
+        boxShadow: "0 4px 30px rgba(0, 0, 0, 0.03)",
+      }}
     >
       <Container maxWidth="xl">
         <Toolbar disableGutters>
@@ -30,43 +25,13 @@ export default function Navbar() {
               background: "linear-gradient(45deg, #2196f3 30%, #21CBF3 90%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
+              letterSpacing: "-0.02em",
             }}
           >
             DCEX
           </Typography>
           <Stack direction="row" spacing={2}>
-            {session.data?.user ? (
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => signOut()}
-                startIcon={<AccountBalanceWallet />}
-              sx={{
-                borderRadius: "12px",
-                textTransform: "none",
-                px: 3,
-                "&:hover": {
-                  backgroundColor: "rgba(33, 150, 243, 0.04)",
-                },
-              }}
-            >
-                Sign In
-              </Button>
-            ) : (
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => signIn()}
-                startIcon={<AccountBalanceWallet />}
-                sx={{
-                  borderRadius: "12px",
-                  textTransform: "none",
-                  px: 3,
-                }}
-              > 
-                Sign In
-              </Button>
-            )}
+            <AuthButton buttonStyle="primary" />
           </Stack>
         </Toolbar>
       </Container>

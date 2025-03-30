@@ -1,10 +1,92 @@
 "use client";
-
-import { Box, Button, Container, Grid, Typography } from "@mui/material";
-import { signIn } from "next-auth/react";
-import Image from "next/image";
+import {
+  Box,
+  Button,
+  Container,
+  Grid,
+  Typography,
+  Skeleton,
+} from "@mui/material";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import AuthButton from "./AuthButton";
 
 export default function HeroSection() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  const renderActionButton = () => {
+    if (status === "loading") {
+      return (
+        <Skeleton
+          variant="rectangular"
+          width={200}
+          height={48}
+          sx={{
+            borderRadius: "12px",
+            bgcolor: "rgba(255, 255, 255, 0.2)",
+          }}
+        />
+      );
+    }
+
+    if (session?.user) {
+      return (
+        <Button
+          variant="contained"
+          size="large"
+          onClick={() => router.push("/dashboard")}
+          sx={{
+            bgcolor: "white",
+            color: "primary.main",
+            px: 4,
+            py: 1.5,
+            fontSize: "1.1rem",
+            fontWeight: 600,
+            borderRadius: "12px",
+            textTransform: "none",
+            boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
+            "&:hover": {
+              bgcolor: "rgba(255,255,255,0.9)",
+              transform: "translateY(-2px)",
+              boxShadow: "0 12px 20px rgba(0,0,0,0.15)",
+            },
+            transition: "all 0.2s ease-in-out",
+          }}
+        >
+          Go to Dashboard
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        variant="contained"
+        size="large"
+        onClick={() => signIn("google")}
+        sx={{
+          bgcolor: "white",
+          color: "primary.main",
+          px: 4,
+          py: 1.5,
+          fontSize: "1.1rem",
+          fontWeight: 600,
+          borderRadius: "12px",
+          textTransform: "none",
+          boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
+          "&:hover": {
+            bgcolor: "rgba(255,255,255,0.9)",
+            transform: "translateY(-2px)",
+            boxShadow: "0 12px 20px rgba(0,0,0,0.15)",
+          },
+          transition: "all 0.2s ease-in-out",
+        }}
+      >
+        Get Started Now
+      </Button>
+    );
+  };
+
   return (
     <Box
       sx={{
@@ -73,30 +155,7 @@ export default function HeroSection() {
                 Experience secure, fast, and reliable cryptocurrency exchange
                 platform
               </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={() => signIn("google")}
-                sx={{
-                  bgcolor: "white",
-                  color: "primary.main",
-                  px: 4,
-                  py: 1.5,
-                  fontSize: "1.1rem",
-                  fontWeight: 600,
-                  borderRadius: "12px",
-                  textTransform: "none",
-                  boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
-                  "&:hover": {
-                    bgcolor: "rgba(255,255,255,0.9)",
-                    transform: "translateY(-2px)",
-                    boxShadow: "0 12px 20px rgba(0,0,0,0.15)",
-                  },
-                  transition: "all 0.2s ease-in-out",
-                }}
-              >
-                Get Started Now
-              </Button>
+              <AuthButton buttonStyle="white" size="large" />
             </Box>
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
