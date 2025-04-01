@@ -1,7 +1,7 @@
 "use client";
 
 import { AppBar, Container, Stack, Toolbar, Typography } from "@mui/material";
-import AuthButton from "./AuthButton";
+import AuthButton from "./landing/AuthButton";
 
 export default function Navbar() {
   return (

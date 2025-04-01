@@ -4,7 +4,7 @@ import { Button, ButtonProps } from "@mui/material";
 import { AccountBalanceWallet } from "@mui/icons-material";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import LoadingButton from "./LoadingButton";
+import LoadingButton from "../LoadingButton";
 
 interface AuthButtonProps extends Omit<ButtonProps, "onClick" | "children"> {
   buttonStyle?: "primary" | "white";
