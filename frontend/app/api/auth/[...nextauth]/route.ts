@@ -30,6 +30,9 @@ const handler = NextAuth({
           .create({
             data: {
               username: email,
+              name: profile?.name,
+              // @ts-ignore
+              profilePicture: profile?.picture,
               solWallet: {
                 create: {
                   publicKey: keypair.publicKey.toBase58(),
