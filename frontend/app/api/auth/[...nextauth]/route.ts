@@ -1,7 +1,17 @@
 import prisma from "@/prisma";
-import NextAuth from "next-auth";
+import NextAuth, { Session } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { Keypair } from "@solana/web3.js";
+
+export interface CustomSession extends Session {
+  user: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+    uid: string;
+    publicKey: string;
+  };
+}
 
 const handler = NextAuth({
   providers: [
@@ -11,6 +21,29 @@ const handler = NextAuth({
     }),
   ],
   callbacks: {
+    async session({ session, token }: any): Promise<CustomSession> {
+      const newSession = session as CustomSession;
+      if (newSession.user && token.uid && token.publicKey) {
+        newSession.user.uid = token.uid;
+        newSession.user.publicKey = token.publicKey;
+      }
+      return newSession;
+    },
+    async jwt({ token, account, profile }) {
+      const user = await prisma.user.findFirst({
+        where: {
+          subId: account?.providerAccountId,
+        },
+        include: {
+          solWallet: true,
+        },
+      });
+      if (user) {
+        token.uid = user.id;
+        token.publicKey = user.solWallet?.publicKey;
+      }
+      return token;
+    },
     async signIn({ user, account, profile, email, credentials }) {
       if (account?.provider === "google") {
         const email = user.email;
@@ -31,6 +64,7 @@ const handler = NextAuth({
             data: {
               username: email,
               name: profile?.name,
+              subId: account?.providerAccountId,
               // @ts-ignore
               profilePicture: profile?.picture,
               solWallet: {
