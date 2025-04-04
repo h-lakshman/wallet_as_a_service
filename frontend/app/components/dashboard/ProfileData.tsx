@@ -7,6 +7,8 @@ import {
   Tab,
   Avatar,
   Grid,
+  Snackbar,
+  Fade,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AddIcon from "@mui/icons-material/Add";
@@ -16,7 +18,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Loading from "../Loading";
-
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -44,18 +46,21 @@ export default function ProfileData() {
   const [balance] = useState("0.00");
   const router = useRouter();
   const session = useSession();
-  const [copied, setCopied] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState({
+    open: false,
+    Transition: Fade,
+    vertical: "top",
+    horizontal: "center",
+  });
 
   const handleCopy = () => {
     navigator.clipboard.writeText(
       // @ts-ignore
       session.data?.user?.publicKey || ""
     );
-    setCopied(true);
-    setTimeout(() => {
-      setCopied(false);
-    }, 3000);
+    setSnackbarOpen({ ...snackbarOpen, open: true });
   };
+
   useEffect(() => {
     if (!session.data?.user) {
       router.push("/");
@@ -107,9 +112,33 @@ export default function ProfileData() {
           <Typography variant="h2" component="div" sx={{ mb: 3 }}>
             ${balance} USD
           </Typography>
-          <Button variant="contained" color="primary" onClick={handleCopy}>
+          <Button
+            variant="contained"
+            onClick={handleCopy}
+            size="small"
+            startIcon={<ContentCopyIcon />}
+            sx={{
+              height: "48px",
+              backgroundColor: "grey.300",
+              color: "grey.700",
+              borderRadius: "24px",
+              opacity: 0.8,
+            }}
+          >
             Your Wallet address
           </Button>
+          <Snackbar
+            open={snackbarOpen.open}
+            onClose={() => setSnackbarOpen({ ...snackbarOpen, open: false })}
+            message="Copied to clipboard"
+            anchorOrigin={{
+              vertical: snackbarOpen.vertical as "top" | "bottom",
+              horizontal: snackbarOpen.horizontal as
+                | "center"
+                | "right"
+                | "left",
+            }}
+          />
         </Box>
 
         {/* Action Buttons */}
