@@ -56,8 +56,8 @@ async function GET(request: Request) {
             return {
               token_name: token.name,
               token_price: token_price,
-              token_balance: token_balance,
-              usd_balance: token_balance * token_price,
+              token_balance: token_balance.toString(),
+              usd_balance: (token_balance * token_price).toString(),
               error: null,
             };
           } catch (e) {
@@ -66,6 +66,7 @@ async function GET(request: Request) {
               token_name: token.name,
               token_price: null,
               token_balance: "0",
+              usd_balance: "0",
               error: "Token account not found",
             };
           }
@@ -75,6 +76,7 @@ async function GET(request: Request) {
             token_name: token.name,
             token_price: null,
             token_balance: "0",
+            usd_balance: "0",
             error: "Failed to get associated token address",
           };
         }
