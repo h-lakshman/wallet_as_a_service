@@ -6,9 +6,9 @@ import {
   Tabs,
   Tab,
   Avatar,
-  Grid,
   Snackbar,
   Fade,
+  Grid,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AddIcon from "@mui/icons-material/Add";
@@ -19,11 +19,22 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Loading from "../Loading";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import useTokenBalance from "@/app/hooks/hooks";
+import { SUPPORTED_TOKENS } from "@/app/lib/constants";
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
   value: number;
 }
+
+type Token = {
+  token_name: string;
+  token_price: number | null;
+  token_balance: string;
+  usd_balance: string;
+  error?: string | null;
+};
 
 function TabPanel(props: TabPanelProps) {
   const { children, value, index, ...other } = props;
@@ -36,16 +47,19 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`simple-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ width: "100%" }}>{children}</Box>}
     </div>
   );
 }
 
 export default function ProfileData() {
   const [tabValue, setTabValue] = useState(0);
-  const [balance] = useState("0.00");
   const router = useRouter();
   const session = useSession();
+  const { totalUsdBalance, tokenBalances } = useTokenBalance(
+    // @ts-ignore
+    session?.data?.user?.publicKey
+  );
   const [snackbarOpen, setSnackbarOpen] = useState({
     open: false,
     Transition: Fade,
@@ -110,7 +124,7 @@ export default function ProfileData() {
           }}
         >
           <Typography variant="h2" component="div" sx={{ mb: 3 }}>
-            ${balance} USD
+            {totalUsdBalance} USD{" "}
           </Typography>
           <Button
             variant="contained"
@@ -202,18 +216,101 @@ export default function ProfileData() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            py: 4,
           }}
         >
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            You don't have any assets yet!
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Start by buying or depositing funds:
-          </Typography>
-          <Button variant="contained" startIcon={<AddIcon />} size="large">
-            Add Funds
-          </Button>
+          {totalUsdBalance === 0 ? (
+            <>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                You don't have any assets yet!
+              </Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Start by buying or depositing funds:
+              </Typography>
+              <Button variant="contained" startIcon={<AddIcon />} size="large">
+                Add Funds
+              </Button>
+            </>
+          ) : (
+            <Box sx={{ width: "100%" }}>
+              {tokenBalances.map((token: Token) => {
+                const supportedToken = SUPPORTED_TOKENS.find(
+                  (t) => t.name === token.token_name
+                );
+                return (
+                  <Box
+                    key={token.token_name}
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      py: 3,
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                      "&:hover": {
+                        bgcolor: "action.hover",
+                      },
+                    }}
+                  >
+                    {/* Left side - Token info */}
+                    <Box sx={{ display: "flex", alignItems: "center" }}>
+                      <Box
+                        component="img"
+                        src={supportedToken?.image}
+                        alt={token.token_name}
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: "50%",
+                          mr: 2,
+                        }}
+                      />
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight="medium">
+                          {token.token_name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          1 {token.token_name} = $
+                          {token.token_price
+                            ? Number(token.token_price).toLocaleString(
+                                undefined,
+                                {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                }
+                              )
+                            : "0.00"}
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Right side - Balance info */}
+                    <Box sx={{ textAlign: "right" }}>
+                      <Typography variant="subtitle1" fontWeight="medium">
+                        $
+                        {Number(token.usd_balance || "0").toLocaleString(
+                          undefined,
+                          {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }
+                        )}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {Number(token.token_balance || "0").toLocaleString(
+                          undefined,
+                          {
+                            minimumFractionDigits: 4,
+                            maximumFractionDigits: 4,
+                          }
+                        )}{" "}
+                        {token.token_name}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
         </Box>
       </TabPanel>
       <TabPanel value={tabValue} index={1}>
