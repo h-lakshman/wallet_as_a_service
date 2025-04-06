@@ -41,32 +41,36 @@ async function GET(request: Request) {
             const token_price = price.find(
               (p) => p.token_name === token.name
             )?.token_price;
+
             if (!token_price) {
               return {
                 token_name: token.name,
-                token_price: null,
-                token_balance: "0",
-                usd_balance: "0",
+                token_price: "0.00",
+                token_balance: "0.000000",
+                usd_balance: "0.00",
                 error: "Token price not found",
               };
             }
+
             const token_balance =
               Number(ata_data.amount.toString()) / 10 ** token.decimals;
 
-            return {
+            const formatted_data = {
               token_name: token.name,
-              token_price: token_price,
-              token_balance: token_balance.toString(),
-              usd_balance: (token_balance * token_price).toString(),
+              token_price: Number(token_price).toFixed(2),
+              token_balance: token_balance.toFixed(6),
+              usd_balance: (token_balance * Number(token_price)).toFixed(2),
               error: null,
             };
+
+            return formatted_data;
           } catch (e) {
             // Account doesn't exist or other token account error
             return {
               token_name: token.name,
-              token_price: null,
-              token_balance: "0",
-              usd_balance: "0",
+              token_price: "0.00",
+              token_balance: "0.000000",
+              usd_balance: "0.00",
               error: "Token account not found",
             };
           }
@@ -74,21 +78,22 @@ async function GET(request: Request) {
           // Error getting associated token address
           return {
             token_name: token.name,
-            token_price: null,
-            token_balance: "0",
-            usd_balance: "0",
+            token_price: "0.00",
+            token_balance: "0.000000",
+            usd_balance: "0.00",
             error: "Failed to get associated token address",
           };
         }
       })
     );
 
+    const total_usd = balances
+      .reduce((acc, curr) => acc + Number(curr.usd_balance), 0)
+      .toFixed(2);
+
     return NextResponse.json({
       tokens: balances,
-      total_usd_balance: balances.reduce(
-        (acc, curr) => acc + Number(curr.usd_balance),
-        0
-      ),
+      total_usd_balance: total_usd,
     });
   } catch (e) {
     console.error("Error processing request:", e);

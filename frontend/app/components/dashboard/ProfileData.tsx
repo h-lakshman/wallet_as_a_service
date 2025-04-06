@@ -9,6 +9,7 @@ import {
   Snackbar,
   Fade,
   Grid,
+  CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AddIcon from "@mui/icons-material/Add";
@@ -56,7 +57,7 @@ export default function ProfileData() {
   const [tabValue, setTabValue] = useState(0);
   const router = useRouter();
   const session = useSession();
-  const { totalUsdBalance, tokenBalances } = useTokenBalance(
+  const { totalUsdBalance, tokenBalances, isLoading, error } = useTokenBalance(
     // @ts-ignore
     session?.data?.user?.publicKey
   );
@@ -124,7 +125,14 @@ export default function ProfileData() {
           }}
         >
           <Typography variant="h2" component="div" sx={{ mb: 3 }}>
-            {totalUsdBalance} USD{" "}
+            {isLoading ? (
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <CircularProgress size={24} sx={{ mr: 2 }} />
+                Loading...
+              </Box>
+            ) : (
+              `${totalUsdBalance} USD`
+            )}
           </Typography>
           <Button
             variant="contained"
@@ -218,7 +226,37 @@ export default function ProfileData() {
             alignItems: "center",
           }}
         >
-          {totalUsdBalance === 0 ? (
+          {isLoading ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                py: 4,
+              }}
+            >
+              <CircularProgress size={40} sx={{ mb: 2 }} />
+              <Typography variant="body1" color="text.secondary">
+                Loading your tokens...
+              </Typography>
+            </Box>
+          ) : error ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                py: 4,
+              }}
+            >
+              <Typography variant="h6" color="error" gutterBottom>
+                Error loading tokens
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {error}
+              </Typography>
+            </Box>
+          ) : totalUsdBalance === 0 ? (
             <>
               <Typography variant="h6" color="text.secondary" gutterBottom>
                 You don't have any assets yet!
@@ -269,16 +307,7 @@ export default function ProfileData() {
                           {token.token_name}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          1 {token.token_name} = $
-                          {token.token_price
-                            ? Number(token.token_price).toLocaleString(
-                                undefined,
-                                {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                }
-                              )
-                            : "0.00"}
+                          1 {token.token_name} = ${token.token_price}
                         </Typography>
                       </Box>
                     </Box>
@@ -286,24 +315,10 @@ export default function ProfileData() {
                     {/* Right side - Balance info */}
                     <Box sx={{ textAlign: "right" }}>
                       <Typography variant="subtitle1" fontWeight="medium">
-                        $
-                        {Number(token.usd_balance || "0").toLocaleString(
-                          undefined,
-                          {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }
-                        )}
+                        ${token.usd_balance}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {Number(token.token_balance || "0").toLocaleString(
-                          undefined,
-                          {
-                            minimumFractionDigits: 4,
-                            maximumFractionDigits: 4,
-                          }
-                        )}{" "}
-                        {token.token_name}
+                        {token.token_balance} {token.token_name}
                       </Typography>
                     </Box>
                   </Box>

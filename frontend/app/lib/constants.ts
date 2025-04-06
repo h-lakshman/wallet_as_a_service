@@ -52,7 +52,6 @@ export const getSupportedTokensPrice = async () => {
       (token) => token.mintAddress
     ).join(",")}`
   );
-
   const prices = Object.entries(response.data.data as TokenPriceResponse).map(
     ([token, tokenData]) => {
       const token_name =
