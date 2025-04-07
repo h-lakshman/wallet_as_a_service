@@ -21,15 +21,22 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import { SUPPORTED_TOKENS } from "@/app/lib/supportedTokens";
 import { grey } from "@mui/material/colors";
 import Balance from "./Balance";
+import { NoArrowTextField } from "./NumberTextField";
 
 const TokenSelector = ({
   token,
   balance,
   onTokenSelect,
+  baseAsset,
+  quoteAsset,
+  type,
 }: {
   token: string;
   balance: string;
   onTokenSelect: (token: string) => void;
+  baseAsset: string;
+  quoteAsset: string;
+  type: "baseAsset" | "quoteAsset";
 }) => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
@@ -95,41 +102,43 @@ const TokenSelector = ({
           },
         }}
       >
-        {SUPPORTED_TOKENS.map((token) => (
-          <MenuItem
-            key={token.symbol}
-            onClick={() => handleTokenSelect(token.symbol)}
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              py: 1,
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              <Box
-                component="img"
-                src={token.image}
-                alt={token.symbol}
-                sx={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: "50%",
+        {SUPPORTED_TOKENS
+          .filter((t) => type === "baseAsset" || t.symbol !== baseAsset)
+          .map((token) => (
+            <MenuItem
+              key={token.symbol}
+              onClick={() => handleTokenSelect(token.symbol)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                py: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                <Box
+                  component="img"
+                  src={token.image}
+                  alt={token.symbol}
+                  sx={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                  }}
+                />
+              </ListItemIcon>
+              <ListItemText
+                primary={token.symbol}
+                secondary={token.name}
+                primaryTypographyProps={{
+                  sx: { fontWeight: 500 },
+                }}
+                secondaryTypographyProps={{
+                  sx: { fontSize: "0.75rem" },
                 }}
               />
-            </ListItemIcon>
-            <ListItemText
-              primary={token.symbol}
-              secondary={token.name}
-              primaryTypographyProps={{
-                sx: { fontWeight: 500 },
-              }}
-              secondaryTypographyProps={{
-                sx: { fontSize: "0.75rem" },
-              }}
-            />
-          </MenuItem>
-        ))}
+            </MenuItem>
+          ))}
       </Menu>
     </>
   );
@@ -246,12 +255,16 @@ export default function Swap({
                 token={baseAsset}
                 balance="0.0639"
                 onTokenSelect={setBaseAsset}
+                baseAsset={baseAsset}
+                quoteAsset={quoteAsset}
+                type="baseAsset"
               />
               <Box sx={{ flexGrow: 1, position: "relative" }}>
-                <TextField
+                <NoArrowTextField
                   fullWidth
                   variant="standard"
                   placeholder="0"
+                  type="number"
                   InputProps={{
                     sx: {
                       fontSize: "1.75rem",
@@ -334,12 +347,16 @@ export default function Swap({
                 token={quoteAsset}
                 balance="0"
                 onTokenSelect={setQuoteAsset}
+                baseAsset={baseAsset}
+                quoteAsset={quoteAsset}
+                type="quoteAsset"
               />
-              <TextField
+              <NoArrowTextField
                 fullWidth
                 variant="standard"
                 placeholder="0"
                 disabled
+                type="number"
                 InputProps={{
                   sx: {
                     fontSize: "1.75rem",
