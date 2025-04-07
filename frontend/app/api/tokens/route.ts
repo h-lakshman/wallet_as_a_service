@@ -3,8 +3,8 @@ import { getAccount, getAssociatedTokenAddress } from "@solana/spl-token";
 import {
   connection,
   getSupportedTokensPrice,
-  SUPPORTED_TOKENS,
 } from "@/app/lib/constants";
+import { SUPPORTED_TOKENS } from "@/app/lib/supportedTokens";
 import { PublicKey } from "@solana/web3.js";
 
 async function GET(request: Request) {
