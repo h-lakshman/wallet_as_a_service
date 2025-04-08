@@ -21,12 +21,12 @@ import Tokens from "./Tokens";
 import Swap from "./Swap";
 import Balance from "./Balance";
 
-type Page = "tokens" | "send" | "addFunds" | "withdraw" | "swap";
+export type Page = "tokens" | "send" | "addFunds" | "withdraw" | "swap";
 
 export default function ProfileData() {
   const router = useRouter();
   const session = useSession();
-  const { totalUsdBalance, isLoading } = useTokenBalance(
+  const { totalUsdBalance, tokenBalances, isLoading, error } = useTokenBalance(
     // @ts-ignore
     session?.data?.user?.publicKey
   );
@@ -135,13 +135,23 @@ export default function ProfileData() {
           </Grid>
         </Grid>
       )}
-      {selectedPage === "tokens" && <Tokens />}
+      {selectedPage === "tokens" && (
+        <Tokens
+          totalUsdBalance={totalUsdBalance}
+          tokenBalances={tokenBalances}
+          isLoading={isLoading}
+          error={error || ""}
+        />
+      )}
       {selectedPage === "swap" && (
         <Swap
           isLoading={isLoading}
           totalUsdBalance={totalUsdBalance}
+          tokenBalances={tokenBalances}
+          error={error || ""}
           snackbarOpen={snackbarOpen}
           setSnackbarOpen={setSnackbarOpen}
+          setSelectedPage={setSelectedPage}
         />
       )}
     </>

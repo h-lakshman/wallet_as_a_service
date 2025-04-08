@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -13,15 +13,19 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  CircularProgress,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { SUPPORTED_TOKENS } from "@/app/lib/supportedTokens";
+import { SUPPORTED_TOKENS, Token } from "@/app/lib/supportedTokens";
 import { grey } from "@mui/material/colors";
 import Balance from "./Balance";
-import { NoArrowTextField } from "./NumberTextField";
+import { NumberTextField } from "./NumberTextField";
+import axios from "axios";
+import { JUPITER_API_URL } from "@/app/lib/constants";
+import { Page } from "./ProfileData";
 
 const TokenSelector = ({
   token,
@@ -102,43 +106,43 @@ const TokenSelector = ({
           },
         }}
       >
-        {SUPPORTED_TOKENS
-          .filter((t) => type === "baseAsset" || t.symbol !== baseAsset)
-          .map((token) => (
-            <MenuItem
-              key={token.symbol}
-              onClick={() => handleTokenSelect(token.symbol)}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                py: 1,
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: 40 }}>
-                <Box
-                  component="img"
-                  src={token.image}
-                  alt={token.symbol}
-                  sx={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: "50%",
-                  }}
-                />
-              </ListItemIcon>
-              <ListItemText
-                primary={token.symbol}
-                secondary={token.name}
-                primaryTypographyProps={{
-                  sx: { fontWeight: 500 },
-                }}
-                secondaryTypographyProps={{
-                  sx: { fontSize: "0.75rem" },
+        {SUPPORTED_TOKENS.filter(
+          (t) => type === "baseAsset" || t.symbol !== baseAsset
+        ).map((token) => (
+          <MenuItem
+            key={token.symbol}
+            onClick={() => handleTokenSelect(token.symbol)}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              py: 1,
+            }}
+          >
+            <ListItemIcon sx={{ minWidth: 40 }}>
+              <Box
+                component="img"
+                src={token.image}
+                alt={token.symbol}
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
                 }}
               />
-            </MenuItem>
-          ))}
+            </ListItemIcon>
+            <ListItemText
+              primary={token.symbol}
+              secondary={token.name}
+              primaryTypographyProps={{
+                sx: { fontWeight: 500 },
+              }}
+              secondaryTypographyProps={{
+                sx: { fontSize: "0.75rem" },
+              }}
+            />
+          </MenuItem>
+        ))}
       </Menu>
     </>
   );
@@ -149,9 +153,14 @@ export default function Swap({
   totalUsdBalance,
   snackbarOpen,
   setSnackbarOpen,
+  tokenBalances,
+  error,
+  setSelectedPage,
 }: {
   isLoading: boolean;
   totalUsdBalance: number;
+  tokenBalances: Token[];
+  error: string;
   snackbarOpen: {
     open: boolean;
     Transition: (props: FadeProps) => React.JSX.Element;
@@ -164,9 +173,43 @@ export default function Swap({
     vertical: "top";
     horizontal: "center";
   }) => void;
+  setSelectedPage: (page: Page) => void;
 }) {
   const [baseAsset, setBaseAsset] = useState("SOL");
   const [quoteAsset, setQuoteAsset] = useState("USDC");
+  const [baseAmount, setBaseAmount] = useState(0);
+  const [quoteAmount, setQuoteAmount] = useState(0);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  let baseAssetDecimals: number | undefined;
+  let quoteAssetDecimals: number | undefined;
+  useEffect(() => {
+    if (!baseAsset || !quoteAsset || !baseAmount) return;
+    const baseAsssetMintAddress = SUPPORTED_TOKENS.find(
+      (t) => t.symbol === baseAsset
+    )?.mintAddress;
+    const quoteAssetMintAddress = SUPPORTED_TOKENS.find(
+      (t) => t.symbol === quoteAsset
+    )?.mintAddress;
+    baseAssetDecimals = SUPPORTED_TOKENS.find(
+      (t) => t.symbol === baseAsset
+    )?.decimals;
+    quoteAssetDecimals = SUPPORTED_TOKENS.find(
+      (t) => t.symbol === quoteAsset
+    )?.decimals;
+    const amount = baseAmount * 10 ** (baseAssetDecimals ?? 0);
+    const fetchQuote = async () => {
+      setQuoteLoading(true);
+      const response = await axios.get(
+        `${JUPITER_API_URL}/swap/v1/quote?inputMint=${baseAsssetMintAddress}&outputMint=${quoteAssetMintAddress}&amount=${amount}`
+      );
+      console.log(response.data.outAmount);
+      setQuoteAmount(
+        Number(response.data.outAmount ?? 0) / 10 ** (quoteAssetDecimals ?? 0)
+      );
+      setQuoteLoading(false);
+    };
+    fetchQuote();
+  }, [baseAsset, quoteAsset, baseAmount]);
 
   return (
     <Container maxWidth="xl" sx={{ pt: 2, pb: 2 }}>
@@ -198,6 +241,7 @@ export default function Swap({
               fontWeight: 400,
               p: "4px 8px",
             }}
+            onClick={() => setSelectedPage("tokens")}
           >
             Back
           </Button>
@@ -260,25 +304,29 @@ export default function Swap({
                 type="baseAsset"
               />
               <Box sx={{ flexGrow: 1, position: "relative" }}>
-                <NoArrowTextField
+                <NumberTextField
                   fullWidth
                   variant="standard"
                   placeholder="0"
                   type="number"
+                  disabled={quoteLoading}
+                  value={baseAmount}
+                  onChange={(e) => setBaseAmount(Number(e.target.value))}
                   InputProps={{
                     sx: {
                       fontSize: "1.75rem",
                       fontWeight: 500,
                       "&::before": { display: "none" },
                       "&::after": { display: "none" },
+                      direction: "rtl",
                     },
                   }}
                 />
                 <Button
                   sx={{
                     position: "absolute",
-                    right: 0,
-                    top: "50%",
+                    top: "100%",
+                    right: "-1.8%",
                     transform: "translateY(-50%)",
                     color: "primary.main",
                     fontSize: "0.75rem",
@@ -290,6 +338,15 @@ export default function Swap({
                       textDecoration: "underline",
                     },
                   }}
+                  onClick={() =>
+                    setBaseAmount(
+                      Number(
+                        tokenBalances.find(
+                          (t: any) => t.token_name === baseAsset
+                        )?.token_balance
+                      )
+                    )
+                  }
                 >
                   Max
                 </Button>
@@ -300,7 +357,12 @@ export default function Swap({
               color="text.secondary"
               sx={{ mt: 0.75, ml: 1, fontSize: "0.8rem" }}
             >
-              Current Balance: 0 {baseAsset}
+              Current Balance:{" "}
+              {
+                tokenBalances.find((t: any) => t.token_name === baseAsset)
+                  ?.token_balance
+              }{" "}
+              {baseAsset}
             </Typography>
           </Box>
 
@@ -351,29 +413,33 @@ export default function Swap({
                 quoteAsset={quoteAsset}
                 type="quoteAsset"
               />
-              <NoArrowTextField
-                fullWidth
-                variant="standard"
-                placeholder="0"
-                disabled
-                type="number"
-                InputProps={{
-                  sx: {
-                    fontSize: "1.75rem",
-                    fontWeight: 500,
-                    "&::before": { display: "none" },
-                    "&::after": { display: "none" },
-                    color: "text.primary",
-                  },
-                }}
-              />
+              <Box sx={{ flexGrow: 1, position: "relative" }}>
+                <Box sx={{ textAlign: "right" }}>
+                  {quoteLoading ? (
+                    <CircularProgress size={20} />
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      color="black"
+                      sx={{ fontWeight: 500, fontSize: "1.75rem" }}
+                    >
+                      {quoteAmount}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
             </Box>
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{ mt: 0.75, ml: 1, fontSize: "0.8rem" }}
             >
-              Current Balance: 0 {quoteAsset}
+              Current Balance:{" "}
+              {
+                tokenBalances.find((t: any) => t.token_name === quoteAsset)
+                  ?.token_balance
+              }{" "}
+              {quoteAsset}
             </Typography>
           </Box>
 
@@ -431,6 +497,7 @@ export default function Swap({
                   bgcolor: "transparent",
                 },
               }}
+              onClick={() => setSelectedPage("tokens")}
             >
               Cancel
             </Button>

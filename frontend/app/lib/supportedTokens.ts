@@ -24,3 +24,11 @@ export const SUPPORTED_TOKENS = [
       "https://api.phantom.app/image-proxy/?image=https%3A%2F%2Fstatic.phantom.app%2Fassets%2Fusdc.png&anim=false&fit=cover&width=256&height=256",
   },
 ];
+
+export type Token = {
+  token_name: string;
+  token_price: string | null;
+  token_balance: string;
+  usd_balance: string;
+  error?: string | null;
+};

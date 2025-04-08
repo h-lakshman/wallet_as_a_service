@@ -1,6 +1,6 @@
 import { styled, TextField } from "@mui/material";
 
-export const NoArrowTextField = styled(TextField)(({ theme }) => ({
+export const NumberTextField = styled(TextField)(({ theme }) => ({
   "& input[type=number]": {
     // Firefox
     MozAppearance: "textfield",

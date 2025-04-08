@@ -26,13 +26,18 @@ function TabPanel(props: TabPanelProps) {
     </div>
   );
 }
-export default function Tokens() {
+export default function Tokens({
+  totalUsdBalance,
+  tokenBalances,
+  isLoading,
+  error,
+}: {
+  totalUsdBalance: number;
+  tokenBalances: any;
+  isLoading: boolean;
+  error: string;
+}) {
   const [tabValue, setTabValue] = useState(0);
-  const session = useSession();
-  const { totalUsdBalance, tokenBalances, isLoading, error } = useTokenBalance(
-    // @ts-ignore
-    session?.data?.user?.publicKey
-  );
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
@@ -120,7 +125,7 @@ export default function Tokens() {
             flexDirection: "column",
             alignItems: "center",
             py: 4,
-            px: 6,  
+            px: 6,
           }}
         >
           <Typography variant="h6" color="text.secondary">
