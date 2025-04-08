@@ -20,7 +20,7 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import SwapVertIcon from "@mui/icons-material/SwapVert";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { SUPPORTED_TOKENS, Token } from "@/app/lib/supportedTokens";
-import { grey } from "@mui/material/colors";
+import { blue, grey } from "@mui/material/colors";
 import Balance from "./Balance";
 import { NumberTextField } from "./NumberTextField";
 import axios from "axios";
@@ -180,6 +180,7 @@ export default function Swap({
   const [baseAmount, setBaseAmount] = useState(0);
   const [quoteAmount, setQuoteAmount] = useState(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteResponse, setQuoteResponse] = useState<any>(null);
   let baseAssetDecimals: number | undefined;
   let quoteAssetDecimals: number | undefined;
   useEffect(() => {
@@ -202,7 +203,7 @@ export default function Swap({
       const response = await axios.get(
         `${JUPITER_API_URL}/swap/v1/quote?inputMint=${baseAsssetMintAddress}&outputMint=${quoteAssetMintAddress}&amount=${amount}`
       );
-      console.log(response.data.outAmount);
+      setQuoteResponse(response.data);
       setQuoteAmount(
         Number(response.data.outAmount ?? 0) / 10 ** (quoteAssetDecimals ?? 0)
       );
@@ -210,6 +211,14 @@ export default function Swap({
     };
     fetchQuote();
   }, [baseAsset, quoteAsset, baseAmount]);
+
+  const initiateSwap = async () => {
+    const response = await axios.post("/api/swap", {
+      quoteResponse,
+      withCredentials: true,
+    });
+    console.log(response.data);
+  };
 
   return (
     <Container maxWidth="xl" sx={{ pt: 2, pb: 2 }}>
@@ -507,19 +516,18 @@ export default function Swap({
               sx={{
                 borderRadius: 1.5,
                 py: 1.25,
-                bgcolor: grey[200],
-                color: grey[600],
                 textTransform: "none",
                 fontSize: "0.9rem",
                 "&:hover": {
-                  bgcolor: grey[300],
+                  bgcolor: blue[300],
                 },
                 "&:disabled": {
                   bgcolor: grey[200],
                   color: grey[600],
                 },
               }}
-              disabled
+              disabled={Boolean(!quoteResponse?.outAmount)}
+              onClick={initiateSwap}
             >
               Confirm & Swap
             </Button>

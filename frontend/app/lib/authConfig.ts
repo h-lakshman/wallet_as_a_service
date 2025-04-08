@@ -20,6 +20,7 @@ export const authConfig = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
     }),
   ],
+  secret: process.env.NEXT_AUTH_SECRET ?? "s3cret",
   callbacks: {
     async session({ session, token }: any): Promise<CustomSession> {
       const newSession = session as CustomSession;
