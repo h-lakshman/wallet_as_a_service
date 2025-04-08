@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAccount, getAssociatedTokenAddress } from "@solana/spl-token";
-import {
-  connection,
-  getSupportedTokensPrice,
-} from "@/app/lib/constants";
-import { SUPPORTED_TOKENS } from "@/app/lib/supportedTokens";
+import { connection, getSupportedTokensPrice } from "@/app/lib/constants";
+import { SUPPORTED_TOKENS, Token } from "@/app/lib/supportedTokens";
 import { PublicKey } from "@solana/web3.js";
 
 async function GET(request: Request) {
@@ -55,10 +52,10 @@ async function GET(request: Request) {
             const token_balance =
               Number(ata_data.amount.toString()) / 10 ** token.decimals;
 
-            const formatted_data = {
+            const formatted_data: Token = {
               token_name: token.name,
               token_price: Number(token_price).toFixed(2),
-              token_balance: token_balance.toFixed(6),
+              token_balance: token_balance.toFixed(4),
               usd_balance: (token_balance * Number(token_price)).toFixed(2),
               error: null,
             };
