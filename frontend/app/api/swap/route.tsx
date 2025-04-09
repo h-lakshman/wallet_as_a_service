@@ -6,8 +6,12 @@ import axios from "axios";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
+const MAX_RETRIES = 3;
+const BASE_PRIORITY_FEE = 100000; // 0.0001 SOL
+const PRIORITY_FEE_INCREMENT = 50000; // 0.00005 SOL
+
 export async function POST(request: NextRequest) {
-  const connection = new Connection("https://api.mainnet-beta.solana.com");
+  const connection = new Connection(`https://api.mainnet-beta.solana.com`);
   const { quoteResponse } = await request.json();
 
   const session = await getServerSession(authConfig);
@@ -20,54 +24,96 @@ export async function POST(request: NextRequest) {
   if (!walletKey) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  let data = {
-    userPublicKey: walletKey,
-    quoteResponse,
-    wrapAndUnwrapSol: true,
-  };
-  const response = await axios.post(`${JUPITER_API_URL}/swap/v1/swap`, data, {
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-  });
-  const privateKey = await prisma.user.findFirst({
-    where: {
-      subId: session.user.uid,
-    },
-    select: {
-      solWallet: {
+
+  let retryCount = 0;
+  let txid: string | null = null;
+
+  while (retryCount < MAX_RETRIES && !txid) {
+    try {
+      // Calculate priority fee for this attempt
+      const currentPriorityFee =
+        BASE_PRIORITY_FEE + PRIORITY_FEE_INCREMENT * retryCount;
+
+      let data = {
+        userPublicKey: walletKey,
+        quoteResponse,
+        wrapAndUnwrapSol: true,
+        priorityFee: currentPriorityFee,
+      };
+
+      const wallet = await prisma.solWallet.findFirst({
+        where: {
+          userId: session.user.uid,
+        },
         select: {
           privateKey: true,
         },
-      },
-    },
-  });
-  if (!privateKey) {
-    return NextResponse.json({ error: "Wallet not found" }, { status: 401 });
-  }
-  const swapTransactionBuf = Buffer.from(
-    response.data.response.swapTransaction,
-    "base64"
-  );
-  const swapTransaction = VersionedTransaction.deserialize(swapTransactionBuf);
-  const wallet = getPrivateKey(privateKey.solWallet?.privateKey!);
-  swapTransaction.sign([wallet]);
-  const latestBlockhash = await connection.getLatestBlockhash();
-  const rawTransaction = swapTransaction.serialize();
-  const txid = await connection.sendRawTransaction(rawTransaction, {
-    skipPreflight: true,
-    maxRetries: 2,
-  });
+      });
 
-  await connection.confirmTransaction({
-    blockhash: latestBlockhash.blockhash,
-    lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-    signature: txid,
-  });
+      if (!wallet) {
+        return NextResponse.json(
+          { error: "Wallet not found" },
+          { status: 401 }
+        );
+      }
+
+      const response = await axios.post(
+        `${JUPITER_API_URL}/swap/v1/swap`,
+        data,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      // Deserialize and sign the transaction
+      const swapTransactionBuf = Buffer.from(
+        response.data.swapTransaction,
+        "base64"
+      );
+      const swapTransaction =
+        VersionedTransaction.deserialize(swapTransactionBuf);
+      const secret = getPrivateKey(wallet.privateKey);
+      swapTransaction.sign([secret]);
+
+      // Send the transaction
+      const rawTransaction = swapTransaction.serialize();
+      txid = await connection.sendRawTransaction(rawTransaction, {
+        skipPreflight: true,
+        maxRetries: 2,
+      });
+
+      // Confirm the transaction
+      const latestBlockhash = await connection.getLatestBlockhash();
+      await connection.confirmTransaction({
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        signature: txid,
+      });
+
+      break;
+    } catch (error) {
+      console.error(`Transaction attempt ${retryCount + 1} failed:`, error);
+      retryCount++;
+      if (retryCount === MAX_RETRIES) {
+        return NextResponse.json(
+          {
+            error: "Transaction failed after multiple attempts",
+            details: error instanceof Error ? error.message : "Unknown error",
+          },
+          { status: 500 }
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
   return NextResponse.json({
     txid,
     status: "success",
+    priorityFeeUsed: BASE_PRIORITY_FEE + PRIORITY_FEE_INCREMENT * retryCount,
   });
 }
 
