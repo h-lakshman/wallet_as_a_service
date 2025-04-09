@@ -16,7 +16,7 @@ async function GET(request: Request) {
     }
 
     try {
-      new PublicKey(address);
+      new PublicKey(address); 
     } catch (e) {
       return NextResponse.json(
         { error: "Invalid wallet address format" },
@@ -24,18 +24,47 @@ async function GET(request: Request) {
       );
     }
 
+    const prices = await getSupportedTokensPrice();
+
     const balances = await Promise.all(
       SUPPORTED_TOKENS.map(async (token) => {
         try {
-          const ata = await getAssociatedTokenAddress(
-            new PublicKey(token.mintAddress),
-            new PublicKey(address)
-          );
+          if (token.name === "SOL") {
+            // Fetch native SOL balance
+            const solBalanceLamports = await connection.getBalance(
+              new PublicKey(address)
+            );
+            const solBalance = solBalanceLamports / 1e9;
 
-          try {
+            const token_price = prices.find(
+              (p) => p.token_name === token.name
+            )?.token_price;
+            if (!token_price) {
+              return {
+                token_name: token.name,
+                token_price: "0.00",
+                token_balance: "0.0000",
+                usd_balance: "0.00",
+                error: "Token price not found",
+              };
+            }
+
+            return {
+              token_name: token.name,
+              token_price: Number(token_price).toFixed(2),
+              token_balance: solBalance.toFixed(4),
+              usd_balance: (solBalance * Number(token_price)).toFixed(2),
+              error: null,
+            };
+          } else {
+            // Fetch SPL token ATA and balance
+            const ata = await getAssociatedTokenAddress(
+              new PublicKey(token.mintAddress),
+              new PublicKey(address)
+            );
+
             const ata_data = await getAccount(connection, ata);
-            const price = await getSupportedTokensPrice();
-            const token_price = price.find(
+            const token_price = prices.find(
               (p) => p.token_name === token.name
             )?.token_price;
 
@@ -43,7 +72,7 @@ async function GET(request: Request) {
               return {
                 token_name: token.name,
                 token_price: "0.00",
-                token_balance: "0.000000",
+                token_balance: "0.0000",
                 usd_balance: "0.00",
                 error: "Token price not found",
               };
@@ -52,33 +81,21 @@ async function GET(request: Request) {
             const token_balance =
               Number(ata_data.amount.toString()) / 10 ** token.decimals;
 
-            const formatted_data: Token = {
+            return {
               token_name: token.name,
               token_price: Number(token_price).toFixed(2),
               token_balance: token_balance.toFixed(4),
               usd_balance: (token_balance * Number(token_price)).toFixed(2),
               error: null,
             };
-
-            return formatted_data;
-          } catch (e) {
-            // Account doesn't exist or other token account error
-            return {
-              token_name: token.name,
-              token_price: "0.00",
-              token_balance: "0.000000",
-              usd_balance: "0.00",
-              error: "Token account not found",
-            };
           }
         } catch (e) {
-          // Error getting associated token address
           return {
             token_name: token.name,
             token_price: "0.00",
-            token_balance: "0.000000",
+            token_balance: "0.0000",
             usd_balance: "0.00",
-            error: "Failed to get associated token address",
+            error: "Token account not found or failed to fetch",
           };
         }
       })
@@ -100,4 +117,5 @@ async function GET(request: Request) {
     );
   }
 }
+
 export { GET };
