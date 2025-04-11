@@ -21,27 +21,22 @@ import Balance from "./Balance";
 import { NumberTextField } from "./NumberTextField";
 import axios from "axios";
 import {
-  JUPITER_API_URL,
-  connection,
-  getSupportedTokensPrice,
+  updateNetworkFee,
+  fetchQuote,
 } from "@/app/lib/constants";
 import { Page } from "./ProfileData";
 import { TokenSelector } from "./TokenSelector";
 import TransactionStatus from "./TransactionStatus";
-import { PublicKey } from "@solana/web3.js";
-import { Session } from "next-auth";
 
-interface UserSession extends Session {
-  user?: {
-    name?: string | null;
-    email?: string | null;
-    image?: string | null;
-    publicKey?: string;
-    uid?: string;
-  };
-}
-
-interface SwapProps {
+export default function Swap({
+  isLoading,
+  totalUsdBalance,
+  snackbarOpen,
+  setSnackbarOpen,
+  tokenBalances,
+  error,
+  setSelectedPage,
+}: {
   isLoading: boolean;
   totalUsdBalance: number;
   tokenBalances: Token[];
@@ -59,19 +54,7 @@ interface SwapProps {
     horizontal: "center";
   }) => void;
   setSelectedPage: (page: Page) => void;
-  session: UserSession | null;
-}
-
-export default function Swap({
-  isLoading,
-  totalUsdBalance,
-  tokenBalances,
-  error,
-  snackbarOpen,
-  setSnackbarOpen,
-  setSelectedPage,
-  session,
-}: SwapProps) {
+}) {
   const [baseAsset, setBaseAsset] = useState("SOL");
   const [quoteAsset, setQuoteAsset] = useState("USDC");
   const [baseAmount, setBaseAmount] = useState(0);
@@ -84,13 +67,20 @@ export default function Swap({
   const [transactionStatusBar, setTransactionStatusBar] = useState(false);
   const [txid, setTxid] = useState<string | null>(null);
   const [insufficientFunds, setInsufficientFunds] = useState(false);
-  const [currentBalances, setCurrentBalances] = useState<
-    Record<string, number>
-  >({});
-  const [balanceCheckLoading, setBalanceCheckLoading] = useState(true);
-
+  const [estimatedNetworkFee, setEstimatedNetworkFee] = useState<number>(0);
+  const [maxNetworkFee, setMaxNetworkFee] = useState<number>(0);
+  const [insufficientSolForFee, setInsufficientSolForFee] = useState(false);
   let baseAssetDecimals: number | undefined;
   let quoteAssetDecimals: number | undefined;
+  useEffect(() => {
+    updateNetworkFee(
+      tokenBalances,
+      setEstimatedNetworkFee,
+      setMaxNetworkFee,
+      setInsufficientSolForFee
+    );
+  }, [tokenBalances]);
+
   useEffect(() => {
     if (!baseAsset || !quoteAsset || !baseAmount) return;
     const baseAsssetMintAddress = SUPPORTED_TOKENS.find(
@@ -108,91 +98,20 @@ export default function Swap({
     const amount = Math.floor(
       parseFloat(baseAmount.toString()) * 10 ** (baseAssetDecimals ?? 0)
     );
-    const fetchQuote = async () => {
-      setQuoteLoading(true);
-      const response = await axios.get(
-        `${JUPITER_API_URL}/swap/v1/quote?inputMint=${baseAsssetMintAddress}&outputMint=${quoteAssetMintAddress}&amount=${amount}`
-      );
 
-      setQuoteResponse(response.data);
-      setQuoteAmount(
-        Number(response.data.outAmount ?? 0) / 10 ** (quoteAssetDecimals ?? 0)
-      );
-      setQuoteLoading(false);
-    };
-    fetchQuote();
+    fetchQuote(
+      setQuoteAmount,
+      setQuoteLoading,
+      setQuoteResponse,
+      amount,
+      baseAsset,
+      quoteAsset,
+      baseAsssetMintAddress,
+      quoteAssetMintAddress,
+      baseAssetDecimals,
+      quoteAssetDecimals
+    );
   }, [baseAsset, quoteAsset, baseAmount]);
-
-  // Initial balance check when component mounts
-  useEffect(() => {
-    const checkInitialBalances = async () => {
-      setBalanceCheckLoading(true);
-      try {
-        const publicKey = new PublicKey(session?.user?.publicKey || "");
-
-        const solBalance = await connection.getBalance(publicKey);
-        const balances: Record<string, number> = {
-          SOL: solBalance / 1e9, // Convert lamports to SOL
-        };
-
-        for (const token of SUPPORTED_TOKENS) {
-          if (token.symbol === "SOL") continue;
-
-          const tokenAccounts = await connection.getTokenAccountsByOwner(
-            publicKey,
-            { mint: new PublicKey(token.mintAddress) }
-          );
-
-          if (tokenAccounts.value.length > 0) {
-            const balance = await connection.getTokenAccountBalance(
-              tokenAccounts.value[0].pubkey
-            );
-            balances[token.symbol] =
-              Number(balance.value.amount) / Math.pow(10, token.decimals);
-          } else {
-            balances[token.symbol] = 0;
-          }
-        }
-
-        setCurrentBalances(balances);
-      } catch (error) {
-        console.error("Error checking balances:", error);
-        // Fallback to tokenBalances if blockchain check fails
-        const fallbackBalances = tokenBalances.reduce((acc, token) => {
-          acc[token.token_name] = Number(token.token_balance);
-          return acc;
-        }, {} as Record<string, number>);
-        setCurrentBalances(fallbackBalances);
-      } finally {
-        setBalanceCheckLoading(false);
-      }
-    };
-
-    checkInitialBalances();
-  }, [session?.user?.publicKey, tokenBalances]);
-
-  const checkBalance = (amount: number, token: string) => {
-    if (!amount || amount <= 0) {
-      setInsufficientFunds(false);
-      return;
-    }
-
-    const tokenBalance = currentBalances[token];
-    if (tokenBalance === undefined) {
-      setInsufficientFunds(true);
-      return;
-    }
-
-    setInsufficientFunds(tokenBalance < amount);
-  };
-
-  useEffect(() => {
-    if (baseAmount > 0) {
-      checkBalance(baseAmount, baseAsset);
-    } else {
-      setInsufficientFunds(false);
-    }
-  }, [baseAmount, baseAsset, currentBalances]);
 
   const initiateSwap = async () => {
     try {
@@ -218,6 +137,23 @@ export default function Swap({
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "" || !isNaN(Number(value))) {
+      setBaseAmount(Number(value));
+      if (
+        Number(value) >
+        Number(
+          tokenBalances.find((t: any) => t.token_name === baseAsset)
+            ?.token_balance
+        )
+      ) {
+        setInsufficientFunds(true);
+      } else {
+        setInsufficientFunds(false);
+      }
+    }
+  };
   return (
     <Container maxWidth="xl" sx={{ pt: 2, pb: 2 }}>
       <Paper
@@ -291,12 +227,33 @@ export default function Swap({
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2.5 }}>
             <Alert
-              severity="info"
+              severity={insufficientSolForFee ? "error" : "info"}
               sx={{ display: "flex", alignItems: "center", flex: 1 }}
             >
               <AlertTitle sx={{ mr: 1, display: "inline" }}>Note:-</AlertTitle>
-              For each swap, a 0.001 SOL to 0.002 SOL network fee will be
-              applied.
+              {insufficientSolForFee ? (
+                <>
+                  You don't have enough SOL to cover the network fee. Please add
+                  at least {maxNetworkFee.toFixed(6)} SOL to your wallet.
+                </>
+              ) : baseAsset === "SOL" ? (
+                <>
+                  For this swap, a network fee between{" "}
+                  {estimatedNetworkFee.toFixed(6)} SOL and{" "}
+                  {maxNetworkFee.toFixed(6)} SOL will be deducted from your
+                  input amount. The quote above already accounts for this fee.
+                </>
+              ) : (
+                <>
+                  For this swap, a network fee between{" "}
+                  {estimatedNetworkFee.toFixed(6)} SOL and{" "}
+                  {maxNetworkFee.toFixed(6)} SOL will be required from your SOL
+                  balance. Make sure you have enough SOL to cover the network
+                  fee.
+                </>
+              )}
+              The actual fee will depend on network conditions at the time of
+              the swap.
             </Alert>
           </Box>
           {/* You Pay Section */}
@@ -335,11 +292,9 @@ export default function Swap({
                   variant="standard"
                   placeholder="0"
                   type="number"
-                  disabled={quoteLoading || balanceCheckLoading}
+                  disabled={quoteLoading}
                   value={baseAmount}
-                  onChange={(e) => setBaseAmount(Number(e.target.value))}
-                  error={insufficientFunds}
-                  helperText={insufficientFunds ? "Insufficient funds" : ""}
+                  onChange={handleInputChange}
                   InputProps={{
                     sx: {
                       fontSize: "1.75rem",
@@ -350,6 +305,7 @@ export default function Swap({
                     },
                   }}
                 />
+
                 <Button
                   sx={{
                     position: "absolute",
@@ -380,19 +336,23 @@ export default function Swap({
                 </Button>
               </Box>
             </Box>
+            {insufficientFunds && (
+              <Alert severity="error" sx={{ mt: 1 }}>
+                Insufficient balance
+              </Alert>
+            )}
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{ mt: 0.75, ml: 1, fontSize: "0.8rem" }}
             >
               Current Balance:{" "}
-              {currentBalances[baseAsset]?.toFixed(4) || "0.0000"} {baseAsset}
+              {
+                tokenBalances.find((t: any) => t.token_name === baseAsset)
+                  ?.token_balance
+              }{" "}
+              {baseAsset}
             </Typography>
-            {insufficientFunds && (
-              <Alert severity="error" sx={{ mt: 1 }}>
-                Insufficient {baseAsset} balance for this swap
-              </Alert>
-            )}
           </Box>
 
           {/* Swap Direction Button */}
@@ -549,16 +509,13 @@ export default function Swap({
               disabled={
                 !quoteResponse?.outAmount ||
                 insufficientFunds ||
+                insufficientSolForFee ||
                 baseAmount <= 0 ||
-                balanceCheckLoading
+                quoteLoading
               }
               onClick={initiateSwap}
             >
-              {balanceCheckLoading ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : (
-                "Confirm & Swap"
-              )}
+              Confirm & Swap
             </Button>
           </Stack>
         </Paper>
