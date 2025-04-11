@@ -1,17 +1,25 @@
 import { authConfig } from "@/app/lib/authConfig";
-import { JUPITER_API_URL } from "@/app/lib/constants";
+import {
+  JUPITER_API_URL,
+  PRIORITY_FEE_INCREMENT,
+  MAX_RETRIES,
+  BASE_PRIORITY_FEE,
+  getOptimalPriorityFee,
+  SOLANA_RPC_URL,
+} from "@/app/lib/constants";
 import prisma from "@/prisma";
-import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import axios from "axios";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 
-const MAX_RETRIES = 3;
-const BASE_PRIORITY_FEE = 100000; // 0.0001 SOL
-const PRIORITY_FEE_INCREMENT = 50000; // 0.00005 SOL
-
 export async function POST(request: NextRequest) {
-  const connection = new Connection(`https://api.mainnet-beta.solana.com`);
+  const connection = new Connection(SOLANA_RPC_URL);
   const { quoteResponse } = await request.json();
 
   const session = await getServerSession(authConfig);
@@ -25,20 +33,40 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Get current optimal fee and calculate max possible fee
+  const optimalFee = await getOptimalPriorityFee(connection);
+  const maxPossibleFee = optimalFee + PRIORITY_FEE_INCREMENT * MAX_RETRIES;
+
+  // Check SOL balance for network fee
+  console.log("walletKey", walletKey);
+  const solBalance = await connection.getBalance(new PublicKey(walletKey));
+  if (solBalance < maxPossibleFee) {
+    return NextResponse.json(
+      {
+        error: "Insufficient SOL balance for network fee",
+        requiredFee: maxPossibleFee / 1e9,
+        currentBalance: solBalance / 1e9,
+      },
+      { status: 400 }
+    );
+  }
+
   let retryCount = 0;
   let txid: string | null = null;
+  let lastError: Error | null = null;
+  let currentPriorityFee = BASE_PRIORITY_FEE;
 
   while (retryCount < MAX_RETRIES && !txid) {
     try {
-      // Calculate priority fee for this attempt
-      const currentPriorityFee =
-        BASE_PRIORITY_FEE + PRIORITY_FEE_INCREMENT * retryCount;
+      currentPriorityFee = await getOptimalPriorityFee(connection);
+      const finalPriorityFee =
+        currentPriorityFee + PRIORITY_FEE_INCREMENT * retryCount;
 
       let data = {
         userPublicKey: walletKey,
         quoteResponse,
         wrapAndUnwrapSol: true,
-        priorityFee: currentPriorityFee,
+        priorityFee: finalPriorityFee,
       };
 
       const wallet = await prisma.solWallet.findFirst({
@@ -78,6 +106,51 @@ export async function POST(request: NextRequest) {
       const secret = getPrivateKey(wallet.privateKey);
       swapTransaction.sign([secret]);
 
+      // Check token balance based on input token
+      if (
+        quoteResponse.inputMint ===
+        "So11111111111111111111111111111111111111112"
+      ) {
+        // For SOL, check native balance
+        const balance = await connection.getBalance(new PublicKey(walletKey));
+        if (balance < quoteResponse.inAmount) {
+          return NextResponse.json(
+            {
+              error: "Insufficient SOL balance",
+            },
+            { status: 400 }
+          );
+        }
+      } else {
+        // For other tokens, check token account balance
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+          new PublicKey(walletKey),
+          { mint: new PublicKey(quoteResponse.inputMint) }
+        );
+
+        if (tokenAccounts.value.length === 0) {
+          return NextResponse.json(
+            {
+              error: "Token account not found",
+            },
+            { status: 400 }
+          );
+        }
+
+        const balance =
+          tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
+        if (BigInt(balance.amount) < BigInt(quoteResponse.inAmount)) {
+          return NextResponse.json(
+            {
+              error: "Insufficient token balance",
+              requiredBalance: quoteResponse.inAmount,
+              currentBalance: balance.amount,
+            },
+            { status: 400 }
+          );
+        }
+      }
+
       // Send the transaction
       const rawTransaction = swapTransaction.serialize();
       txid = await connection.sendRawTransaction(rawTransaction, {
@@ -96,24 +169,29 @@ export async function POST(request: NextRequest) {
       break;
     } catch (error) {
       console.error(`Transaction attempt ${retryCount + 1} failed:`, error);
+      lastError = error as Error;
       retryCount++;
+
       if (retryCount === MAX_RETRIES) {
         return NextResponse.json(
           {
             error: "Transaction failed after multiple attempts",
-            details: error instanceof Error ? error.message : "Unknown error",
+            details: lastError.message,
+            priorityFeeUsed: currentPriorityFee,
           },
           { status: 500 }
         );
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      await new Promise((resolve) => setTimeout(resolve, backoffTime));
     }
   }
 
   return NextResponse.json({
     txid,
     status: "success",
-    priorityFeeUsed: BASE_PRIORITY_FEE + PRIORITY_FEE_INCREMENT * retryCount,
+    priorityFeeUsed: currentPriorityFee,
   });
 }
 
