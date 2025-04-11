@@ -16,7 +16,7 @@ async function GET(request: Request) {
     }
 
     try {
-      new PublicKey(address); 
+      new PublicKey(address);
     } catch (e) {
       return NextResponse.json(
         { error: "Invalid wallet address format" },
@@ -80,12 +80,11 @@ async function GET(request: Request) {
 
             const token_balance =
               Number(ata_data.amount.toString()) / 10 ** token.decimals;
-
             return {
               token_name: token.name,
-              token_price: Number(token_price).toFixed(2),
-              token_balance: token_balance.toFixed(4),
-              usd_balance: (token_balance * Number(token_price)).toFixed(2),
+              token_price: Number(token_price),
+              token_balance: token_balance,
+              usd_balance: token_balance * Number(token_price),
               error: null,
             };
           }
@@ -101,9 +100,10 @@ async function GET(request: Request) {
       })
     );
 
-    const total_usd = balances
-      .reduce((acc, curr) => acc + Number(curr.usd_balance), 0)
-      .toFixed(2);
+    const total_usd = balances.reduce(
+      (acc, curr) => acc + Number(curr.usd_balance),
+      0
+    );
 
     return NextResponse.json({
       tokens: balances,
