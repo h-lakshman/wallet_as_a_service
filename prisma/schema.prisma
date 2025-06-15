@@ -1,0 +1,44 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String     @id @default(uuid())
+  username       String     @unique
+  password       String?
+  solWalletId    String?
+  inrWalletId    String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  name           String?
+  profilePicture String?
+  subId          String
+  inrWallet      inrWallet?
+  solWallet      solWallet?
+}
+
+model solWallet {
+  id                String   @id @default(uuid())
+  publicKey         String
+  userId            String   @unique
+  createdAt         DateTime @default(now())
+  encryptedKeyShare String // Encrypted key share 1 (stored in database)
+  shareIndex        Int // Share index for reconstruction
+  shareThreshold    Int      @default(3) // Minimum shares needed (all 3 required)
+  totalShares       Int      @default(3)
+  // Share 2 stored in Redis 1, Share 3 stored in Redis 2
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
+}
+
+model inrWallet {
+  id      String @id @default(uuid())
+  balance Int    @default(0)
+  userId  String @unique
+  user    User   @relation(fields: [userId], references: [id])
+}

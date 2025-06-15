@@ -3,6 +3,7 @@ import { Account, Profile, Session, User } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { Keypair } from "@solana/web3.js";
 import { JWT } from "next-auth/jwt";
+import { generateMPCWallet } from "./mpc-key-manager";
 
 export interface CustomSession extends Session {
   user: {
@@ -75,42 +76,52 @@ export const authConfig = {
         if (existingUser) {
           return true;
         }
-        const keypair = Keypair.generate();
-        await prisma.user
-          .create({
-            data: {
-              username: email,
-              name: profile?.name,
-              subId: account?.providerAccountId,
-              // @ts-ignore
-              profilePicture: profile?.picture,
-              solWallet: {
-                create: {
-                  publicKey: keypair.publicKey.toBase58(),
-                  privateKey: keypair.secretKey.toString(),
-                },
-              },
-              inrWallet: {
-                create: {
-                  balance: 0,
-                },
-              },
-            },
-            include: {
-              solWallet: true,
-              inrWallet: true,
-            },
-          })
-          .then(async (user) => {
-            await prisma.user.update({
-              where: { id: user.id },
+
+        try {
+          const mpcWallet = await generateMPCWallet(account.providerAccountId);
+
+          await prisma.user
+            .create({
               data: {
-                solWalletId: user.solWallet?.id,
-                inrWalletId: user.inrWallet?.id,
+                username: email,
+                name: profile?.name,
+                subId: account?.providerAccountId,
+                // @ts-ignore
+                profilePicture: profile?.picture,
+                solWallet: {
+                  create: {
+                    publicKey: mpcWallet.publicKey,
+                    encryptedKeyShare: mpcWallet.encryptedShare1,
+                    shareIndex: 1,
+                    shareThreshold: 3,
+                    totalShares: 3,
+                  },
+                },
+                inrWallet: {
+                  create: {
+                    balance: 0,
+                  },
+                },
               },
+              include: {
+                solWallet: true,
+                inrWallet: true,
+              },
+            })
+            .then(async (user) => {
+              await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  solWalletId: user.solWallet?.id,
+                  inrWalletId: user.inrWallet?.id,
+                },
+              });
             });
-          });
-        return true;
+          return true;
+        } catch (error) {
+          console.error("Failed to create MPC wallet:", error);
+          return false;
+        }
       }
       return false;
     },

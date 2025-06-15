@@ -7,6 +7,7 @@ import {
   getOptimalPriorityFee,
   SOLANA_RPC_URL,
 } from "@/app/lib/constants";
+import { signTransactionMPC } from "@/app/lib/mpc-key-manager";
 import prisma from "@/prisma";
 import {
   Connection,
@@ -33,11 +34,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get current optimal fee and calculate max possible fee
   const optimalFee = await getOptimalPriorityFee(connection);
   const maxPossibleFee = optimalFee + PRIORITY_FEE_INCREMENT * MAX_RETRIES;
 
-  // Check SOL balance for network fee
   console.log("walletKey", walletKey);
   const solBalance = await connection.getBalance(new PublicKey(walletKey));
   if (solBalance < maxPossibleFee) {
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
           userId: session.user.uid,
         },
         select: {
-          privateKey: true,
+          encryptedKeyShare: true,
         },
       });
 
@@ -96,22 +95,24 @@ export async function POST(request: NextRequest) {
         }
       );
 
-      // Deserialize and sign the transaction
+      // Deserialize the transaction
       const swapTransactionBuf = Buffer.from(
         response.data.swapTransaction,
         "base64"
       );
       const swapTransaction =
         VersionedTransaction.deserialize(swapTransactionBuf);
-      const secret = getPrivateKey(wallet.privateKey);
-      swapTransaction.sign([secret]);
 
-      // Check token balance based on input token
+      const signedTransaction = await signTransactionMPC(
+        session.user.uid,
+        swapTransaction,
+        wallet.encryptedKeyShare
+      );
+
       if (
         quoteResponse.inputMint ===
         "So11111111111111111111111111111111111111112"
       ) {
-        // For SOL, check native balance
         const balance = await connection.getBalance(new PublicKey(walletKey));
         if (balance < quoteResponse.inAmount) {
           return NextResponse.json(
@@ -122,7 +123,6 @@ export async function POST(request: NextRequest) {
           );
         }
       } else {
-        // For other tokens, check token account balance
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
           new PublicKey(walletKey),
           { mint: new PublicKey(quoteResponse.inputMint) }
@@ -151,14 +151,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Send the transaction
-      const rawTransaction = swapTransaction.serialize();
+      const rawTransaction = signedTransaction.serialize();
       txid = await connection.sendRawTransaction(rawTransaction, {
         skipPreflight: true,
         maxRetries: 2,
       });
 
-      // Confirm the transaction
       const latestBlockhash = await connection.getLatestBlockhash();
       await connection.confirmTransaction({
         blockhash: latestBlockhash.blockhash,
@@ -193,10 +191,4 @@ export async function POST(request: NextRequest) {
     status: "success",
     priorityFeeUsed: currentPriorityFee,
   });
-}
-
-function getPrivateKey(privateKey: string) {
-  const secretKey = privateKey.split(",").map((key) => Number(key));
-  const privateKeyUintArr = Uint8Array.from(secretKey);
-  return Keypair.fromSecretKey(privateKeyUintArr);
 }
