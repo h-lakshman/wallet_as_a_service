@@ -42,26 +42,13 @@ Recovery: Automatic rebuild from database share when Redis fails
 
 ## Key Features
 
-### Automatic Key Management
-
-- **30-Day Rotation Problem**: Proactive rotation 7 days before expiration
-- **Redis Failure Recovery**: Automatic share reconstruction from database
-- **Zero Downtime**: Wallets remain functional during Redis outages
-- **Maintenance Automation**: Cron jobs handle all share management
-
-### Security Implementation
-
-- **No Single Point of Failure**: All 3 shares required for key reconstruction
-- **Encrypted Storage**: AES-256 encryption for all shares
-- **Memory Safety**: Private keys cleared immediately after use
-- **Automatic Recovery**: System rebuilds missing shares automatically
-
-### Transaction Processing
-
 - **Dynamic Priority Fees**: Network congestion-based fee calculation
 - **Intelligent Retry**: Exponential backoff with fee increases
 - **Jupiter Integration**: Optimal swap routes with 0.5% slippage
 - **MPC Signing**: Secure transaction signing with automatic share management
+- **No Single Point of Failure**: All 3 shares required for key reconstruction
+- **Encrypted Storage**: AES-256 encryption for all shares
+- **Memory Safety**: Private keys cleared immediately after use
 
 ## User Flow
 
@@ -113,26 +100,6 @@ NEXTAUTH_URL="https://your-domain.com"
 # Automation
 CRON_SECRET="your-cron-secret-for-automated-tasks"
 ```
-
-## Security Features
-
-### Threat Mitigation
-
-| Threat Vector          | Risk Level     | Mitigation                                |
-| ---------------------- | -------------- | ----------------------------------------- |
-| Database breach        | High           | Share 1 alone cannot reconstruct key      |
-| Redis compromise       | High           | Individual Redis shares useless alone     |
-| Memory dump attack     | Medium         | Private key cleared immediately after use |
-| Infrastructure failure | **LOW**        | **Auto-recovery from database share**     |
-| Share expiration       | **ELIMINATED** | **Automatic 7-day proactive rotation**    |
-
-### Best Practices
-
-- Zero-Trust Architecture
-- Defense in Depth security layers
-- Principle of Least Privilege
-- Proactive maintenance prevents failures
-- Comprehensive audit logging
 
 ## Priority Fee Management
 
@@ -186,27 +153,3 @@ npm run dev
 # Test Share Rotation
 npm run migrate-backup all
 ```
-
-## Critical Improvements Made
-
-### 1. Automatic Key Rotation
-
-- **Problem**: 30-day Redis expiration would break wallets
-- **Solution**: Proactive rotation 7 days before expiration
-- **Implementation**: `ensureShareAvailability()` function
-
-### 2. Redis Failure Recovery
-
-- **Problem**: Redis downtime makes wallets unusable
-- **Solution**: Automatic share reconstruction from database
-- **Implementation**: `recoverMissingShares()` function
-
-### 3. Maintenance Automation
-
-- **Problem**: Manual intervention required for share management
-- **Solution**: Automated cron jobs and transaction-time checks
-- **Implementation**: `/api/mpc/rotate` endpoint
-
-## License
-
-This project is proprietary software. All rights reserved.
