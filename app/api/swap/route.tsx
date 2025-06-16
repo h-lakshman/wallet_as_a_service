@@ -39,15 +39,42 @@ export async function POST(request: NextRequest) {
 
   console.log("walletKey", walletKey);
   const solBalance = await connection.getBalance(new PublicKey(walletKey));
-  if (solBalance < maxPossibleFee) {
-    return NextResponse.json(
-      {
-        error: "Insufficient SOL balance for network fee",
-        requiredFee: maxPossibleFee / 1e9,
-        currentBalance: solBalance / 1e9,
-      },
-      { status: 400 }
-    );
+
+  //  SOL swaps, do comprehensive balance check upfront
+  if (
+    quoteResponse.inputMint === "So11111111111111111111111111111111111111112"
+  ) {
+    const swapAmount = parseInt(quoteResponse.inAmount);
+    const accountCreationFee = 2039280; // Token account creation
+    const totalRequired = swapAmount + accountCreationFee + maxPossibleFee;
+
+    if (solBalance < totalRequired) {
+      return NextResponse.json(
+        {
+          error: "Insufficient SOL balance for swap + all fees",
+          requiredAmount: totalRequired / 1e9,
+          currentBalance: solBalance / 1e9,
+          breakdown: {
+            swapAmount: swapAmount / 1e9,
+            accountCreationFee: accountCreationFee / 1e9,
+            maxNetworkFees: maxPossibleFee / 1e9,
+          },
+        },
+        { status: 400 }
+      );
+    }
+  } else {
+    //  token swaps, just check network fees
+    if (solBalance < maxPossibleFee) {
+      return NextResponse.json(
+        {
+          error: "Insufficient SOL balance for network fees",
+          requiredFee: maxPossibleFee / 1e9,
+          currentBalance: solBalance / 1e9,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   let retryCount = 0;
@@ -114,10 +141,24 @@ export async function POST(request: NextRequest) {
         "So11111111111111111111111111111111111111112"
       ) {
         const balance = await connection.getBalance(new PublicKey(walletKey));
-        if (balance < quoteResponse.inAmount) {
+
+        // Calculate total required SOL: swap amount + fees + account creation
+        const swapAmount = parseInt(quoteResponse.inAmount);
+        const accountCreationFee = 2039280; // ~0.002 SOL for token account creation
+        const networkFees = finalPriorityFee + 5000; // Priority fee + base transaction fee
+        const totalRequired = swapAmount + accountCreationFee + networkFees;
+
+        if (balance < totalRequired) {
           return NextResponse.json(
             {
-              error: "Insufficient SOL balance",
+              error: "Insufficient SOL balance for swap + fees",
+              requiredAmount: totalRequired / 1e9,
+              currentBalance: balance / 1e9,
+              breakdown: {
+                swapAmount: swapAmount / 1e9,
+                accountCreationFee: accountCreationFee / 1e9,
+                networkFees: networkFees / 1e9,
+              },
             },
             { status: 400 }
           );
@@ -158,11 +199,38 @@ export async function POST(request: NextRequest) {
       });
 
       const latestBlockhash = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({
+      const confirmation = await connection.confirmTransaction({
         blockhash: latestBlockhash.blockhash,
         lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
         signature: txid,
       });
+
+      // Check if the transaction actually succeeded
+      if (confirmation.value.err) {
+        throw new Error(
+          `Transaction failed with error: ${JSON.stringify(
+            confirmation.value.err
+          )}`
+        );
+      }
+
+      // Verify the transaction was successful by checking the transaction details
+      const transactionDetails = await connection.getTransaction(txid, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+
+      if (!transactionDetails) {
+        throw new Error("Could not fetch transaction details");
+      }
+
+      if (transactionDetails.meta?.err) {
+        throw new Error(
+          `Transaction failed with program error: ${JSON.stringify(
+            transactionDetails.meta.err
+          )}`
+        );
+      }
 
       break;
     } catch (error) {
