@@ -61,8 +61,8 @@ export default function CTASection() {
               lineHeight: 1.6,
             }}
           >
-            Join thousands of users who trust DCEX for their cryptocurrency
-            exchange needs
+            Join thousands of users who trust FlowWallet for their
+            cryptocurrency exchange needs
           </Typography>
           <AuthButton buttonStyle="white" size="large" />
         </Box>

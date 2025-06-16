@@ -62,7 +62,7 @@ export default function FeaturesSection() {
             WebkitTextFillColor: "transparent",
           }}
         >
-          Why Choose DCEX
+          Why Choose FlowWallet
         </Typography>
         <Grid container spacing={4}>
           {features.map((feature, index) => (

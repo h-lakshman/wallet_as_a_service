@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DCEX",
+  title: "FlowWallet",
   description: "Secure and seamless cryptocurrency exchange platform",
 };
 

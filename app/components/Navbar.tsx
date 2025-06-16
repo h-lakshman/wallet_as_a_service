@@ -28,7 +28,7 @@ export default function Navbar() {
               letterSpacing: "-0.02em",
             }}
           >
-            DCEX
+            FlowWallet
           </Typography>
           <Stack direction="row" spacing={2}>
             <AuthButton buttonStyle="primary" />

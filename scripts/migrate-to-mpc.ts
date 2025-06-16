@@ -60,7 +60,6 @@ async function migrateSingleWallet(
       shareIndex: 1,
       shareThreshold: 3,
       totalShares: 3,
-      backupKeyShare: null, // No longer stored in database - now in Redis 2
       updatedAt: new Date(),
     },
   });

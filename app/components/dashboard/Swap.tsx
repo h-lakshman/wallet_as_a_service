@@ -20,10 +20,7 @@ import { blue, grey } from "@mui/material/colors";
 import Balance from "./Balance";
 import { NumberTextField } from "./NumberTextField";
 import axios from "axios";
-import {
-  updateNetworkFee,
-  fetchQuote,
-} from "@/app/lib/constants";
+import { updateNetworkFee, fetchQuote } from "@/app/lib/constants";
 import { Page } from "./ProfileData";
 import { TokenSelector } from "./TokenSelector";
 import TransactionStatus from "./TransactionStatus";
@@ -322,15 +319,27 @@ export default function Swap({
                       textDecoration: "underline",
                     },
                   }}
-                  onClick={() =>
-                    setBaseAmount(
-                      Number(
-                        tokenBalances.find(
-                          (t: any) => t.token_name === baseAsset
-                        )?.token_balance
-                      )
-                    )
-                  }
+                  onClick={() => {
+                    const currentBalance = Number(
+                      tokenBalances.find((t: any) => t.token_name === baseAsset)
+                        ?.token_balance
+                    );
+
+                    if (baseAsset === "SOL") {
+                      // For SOL swaps, subtract network fees and account creation fee
+                      const accountCreationFee = 0.00203928; // 2039280 lamports in SOL
+                      const totalFeesToReserve =
+                        maxNetworkFee + accountCreationFee;
+                      const maxSwapAmount = Math.max(
+                        0,
+                        currentBalance - totalFeesToReserve
+                      );
+                      setBaseAmount(maxSwapAmount);
+                    } else {
+                      // For token swaps, use full balance (SOL fees are separate)
+                      setBaseAmount(currentBalance);
+                    }
+                  }}
                 >
                   Max
                 </Button>
