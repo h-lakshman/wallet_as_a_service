@@ -20,6 +20,7 @@ import useTokenBalance from "@/app/hooks/hooks";
 import Tokens from "./Tokens";
 import Swap from "./Swap";
 import Balance from "./Balance";
+import Send from "./Send";
 
 export type Page = "tokens" | "send" | "addFunds" | "withdraw" | "swap";
 
@@ -149,6 +150,16 @@ export default function ProfileData() {
           totalUsdBalance={totalUsdBalance}
           tokenBalances={tokenBalances}
           error={error || ""}
+          snackbarOpen={snackbarOpen}
+          setSnackbarOpen={setSnackbarOpen}
+          setSelectedPage={setSelectedPage}
+        />
+      )}
+      {selectedPage === "send" && (
+        <Send
+          isLoading={isLoading}
+          totalUsdBalance={totalUsdBalance}
+          tokenBalances={tokenBalances}
           snackbarOpen={snackbarOpen}
           setSnackbarOpen={setSnackbarOpen}
           setSelectedPage={setSelectedPage}

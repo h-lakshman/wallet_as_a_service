@@ -51,7 +51,6 @@ export const getSupportedTokensPrice = async () => {
 
 export const getOptimalPriorityFee = async (connection: Connection) => {
   try {
-
     //min fee 120000 units, max 50000 units
     const recentBlockhash = await connection.getLatestBlockhash();
     if (!recentBlockhash) {

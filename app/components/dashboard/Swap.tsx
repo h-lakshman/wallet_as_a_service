@@ -326,8 +326,7 @@ export default function Swap({
                     );
 
                     if (baseAsset === "SOL") {
-                      // For SOL swaps, subtract network fees and account creation fee
-                      const accountCreationFee = 0.00203928; // 2039280 lamports in SOL
+                      const accountCreationFee = 0.00203928; 
                       const totalFeesToReserve =
                         maxNetworkFee + accountCreationFee;
                       const maxSwapAmount = Math.max(
