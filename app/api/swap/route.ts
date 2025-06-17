@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
       );
     }
   } else {
-    //  token swaps, just check network fees
     if (solBalance < maxPossibleFee) {
       return NextResponse.json(
         {
@@ -122,7 +121,6 @@ export async function POST(request: NextRequest) {
         }
       );
 
-      // Deserialize the transaction
       const swapTransactionBuf = Buffer.from(
         response.data.swapTransaction,
         "base64"
@@ -142,7 +140,6 @@ export async function POST(request: NextRequest) {
       ) {
         const balance = await connection.getBalance(new PublicKey(walletKey));
 
-        // Calculate total required SOL: swap amount + fees + account creation
         const swapAmount = parseInt(quoteResponse.inAmount);
         const accountCreationFee = 2039280; // ~0.002 SOL for token account creation
         const networkFees = finalPriorityFee + 5000; // Priority fee + base transaction fee
@@ -193,7 +190,7 @@ export async function POST(request: NextRequest) {
       }
 
       const rawTransaction = signedTransaction.serialize();
-      txid = await connection.sendRawTransaction(rawTransaction, {
+      const txid = await connection.sendRawTransaction(rawTransaction, {
         skipPreflight: true,
         maxRetries: 2,
       });
