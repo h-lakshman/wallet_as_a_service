@@ -16,6 +16,7 @@ export const connection = new Connection(SOLANA_MAINNET_RPC_URL);
 export const MAX_RETRIES = 3;
 export const BASE_PRIORITY_FEE = 120000; // 0.00012 SOL
 export const PRIORITY_FEE_INCREMENT = 50000; // 0.00005 SOL
+export const ACCOUNT_CREATION_FEE = 2039280; // 0.00203928 SOL
 
 let cachedPrices: { token_name: string; token_price: number }[] | null = null;
 let lastFetchTime = 0;
@@ -107,7 +108,22 @@ export const updateNetworkFee = async (
     const lastUpdate = parseInt(localStorage.getItem("LAST_UPDATE_KEY") || "0");
     const oneMinute = 60 * 1000;
 
-    if (now - lastUpdate < oneMinute) return;
+    const solBalance = tokenBalances.find(
+      (t) => t.token_name === "SOL"
+    )?.token_balance;
+
+    // Always check insufficient balance even if we skip fee updates
+    if (now - lastUpdate < oneMinute && solBalance) {
+      const currentMaxFee = parseFloat(
+        localStorage.getItem("CACHED_MAX_FEE") || "0"
+      );
+      if (currentMaxFee > 0) {
+        const totalRequiredSol = currentMaxFee + ACCOUNT_CREATION_FEE / 1e9;
+        const hasEnoughSol = Number(solBalance) >= totalRequiredSol;
+        setInsufficientSolForFee(!hasEnoughSol);
+        return;
+      }
+    }
 
     let optimalFee;
     try {
@@ -124,12 +140,13 @@ export const updateNetworkFee = async (
     setEstimatedNetworkFee(currentFee);
     setMaxNetworkFee(maxPossibleFee);
 
-    const solBalance = tokenBalances.find(
-      (t) => t.token_name === "SOL"
-    )?.token_balance;
+    // Cache the max fee for use during cached periods
+    localStorage.setItem("CACHED_MAX_FEE", maxPossibleFee.toString());
 
     if (solBalance) {
-      const hasEnoughSol = Number(solBalance) >= maxPossibleFee;
+      // Account for potential account creation fees (consistent with backend logic)
+      const totalRequiredSol = maxPossibleFee + ACCOUNT_CREATION_FEE / 1e9;
+      const hasEnoughSol = Number(solBalance) >= totalRequiredSol;
       setInsufficientSolForFee(!hasEnoughSol);
     }
 
@@ -137,8 +154,22 @@ export const updateNetworkFee = async (
   } catch (error) {
     console.error("Error updating network fee:", error);
     const baseFee = BASE_PRIORITY_FEE / 1e9;
+    const maxFeeInSol = baseFee + (PRIORITY_FEE_INCREMENT * MAX_RETRIES) / 1e9;
     setEstimatedNetworkFee(baseFee);
-    setMaxNetworkFee(baseFee + (PRIORITY_FEE_INCREMENT * MAX_RETRIES) / 1e9);
+    setMaxNetworkFee(maxFeeInSol);
+
+    // Cache the max fee for use during cached periods
+    localStorage.setItem("CACHED_MAX_FEE", maxFeeInSol.toString());
+
+    const solBalance = tokenBalances.find(
+      (t) => t.token_name === "SOL"
+    )?.token_balance;
+
+    if (solBalance) {
+      const totalRequiredSol = maxFeeInSol + ACCOUNT_CREATION_FEE / 1e9;
+      const hasEnoughSol = Number(solBalance) >= totalRequiredSol;
+      setInsufficientSolForFee(!hasEnoughSol);
+    }
   }
 };
 
@@ -159,9 +190,19 @@ export const fetchQuote = async (
     const optimalFee = await getOptimalPriorityFee(connection);
     const maxPossibleFee = optimalFee + PRIORITY_FEE_INCREMENT * MAX_RETRIES;
 
-    let amountForQuote = amount;
+    // Convert decimal amount to atomic units for Jupiter API
+    let amountInAtomicUnits: number;
+    if (baseAssetDecimals !== undefined) {
+      amountInAtomicUnits = toAtomicUnits(amount, baseAssetDecimals);
+    } else {
+      // Fallback to treating as already atomic units
+      amountInAtomicUnits = Math.floor(amount);
+    }
+
+    // For SOL swaps, subtract the network fees from the atomic amount
+    let amountForQuote = amountInAtomicUnits;
     if (baseAsset === "SOL") {
-      amountForQuote = amount - maxPossibleFee;
+      amountForQuote = amountInAtomicUnits - maxPossibleFee;
     }
 
     const response = await axios.get(
@@ -177,4 +218,47 @@ export const fetchQuote = async (
   } finally {
     setQuoteLoading(false);
   }
+};
+
+/**
+ * Safely converts a decimal amount to integer atomic units (lamports/tokens)
+ * Handles floating-point precision issues by using string manipulation
+ */
+export const toAtomicUnits = (
+  amount: string | number,
+  decimals: number
+): number => {
+  const amountStr = amount.toString();
+
+  // Handle empty or zero amounts
+  if (!amountStr || amountStr === "0" || amountStr === "") {
+    return 0;
+  }
+
+  // Split by decimal point
+  const [integerPart = "0", decimalPart = ""] = amountStr.split(".");
+
+  // Pad or truncate decimal part to match required decimals
+  const paddedDecimalPart = decimalPart
+    .padEnd(decimals, "0")
+    .substring(0, decimals);
+
+  // Combine integer and decimal parts
+  const atomicStr = integerPart + paddedDecimalPart;
+
+  // Convert to number, ensuring it's an integer
+  const atomicValue = parseInt(atomicStr, 10);
+
+  if (isNaN(atomicValue)) {
+    throw new Error(`Invalid amount: ${amount}`);
+  }
+
+  return atomicValue;
+};
+
+/**
+ * Safely converts a decimal SOL amount to lamports
+ */
+export const toLamports = (solAmount: string | number): number => {
+  return toAtomicUnits(solAmount, 9); // SOL has 9 decimals
 };

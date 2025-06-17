@@ -5,6 +5,9 @@ import {
   MAX_RETRIES,
   PRIORITY_FEE_INCREMENT,
   SOLANA_RPC_URL,
+  ACCOUNT_CREATION_FEE,
+  toLamports,
+  toAtomicUnits,
 } from "@/app/lib/constants";
 import { signTransactionMPC } from "@/app/lib/mpc-key-manager";
 import { SUPPORTED_TOKENS } from "@/app/lib/supportedTokens";
@@ -62,10 +65,9 @@ export async function POST(request: NextRequest) {
   }
 
   if (tokenSymbol === "SOL") {
-    const sendAmountLamports = Number(sendAmount) * LAMPORTS_PER_SOL;
-    const accountCreationFee = 2039280;
+    const sendAmountLamports = toLamports(sendAmount);
     const totalRequired =
-      sendAmountLamports + maxPossibleFee + accountCreationFee;
+      sendAmountLamports + maxPossibleFee + ACCOUNT_CREATION_FEE;
 
     if (solBalance < totalRequired) {
       return NextResponse.json(
@@ -93,8 +95,7 @@ export async function POST(request: NextRequest) {
 
       const tokenBalance =
         tokenAccounts.value[0].account.data.parsed.info.tokenAmount;
-      const sendAmountAtomic =
-        Number(sendAmount) * Math.pow(10, tokenInfo.decimals);
+      const sendAmountAtomic = toAtomicUnits(sendAmount, tokenInfo.decimals);
 
       if (Number(tokenBalance.amount) < sendAmountAtomic) {
         return NextResponse.json(
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
       needsAccountCreation = true;
     }
 
-    const accountCreationFee = needsAccountCreation ? 2039280 : 0;
+    const accountCreationFee = needsAccountCreation ? ACCOUNT_CREATION_FEE : 0;
     const totalRequiredSol = maxPossibleFee + accountCreationFee;
 
     if (solBalance < totalRequiredSol) {
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
         transferInstruction = SystemProgram.transfer({
           fromPubkey: new PublicKey(walletKey),
           toPubkey: new PublicKey(toPubKey),
-          lamports: Number(sendAmount) * LAMPORTS_PER_SOL,
+          lamports: toLamports(sendAmount),
         });
         instructions.push(transferInstruction);
       } else {
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
           fromTokenAccount,
           toTokenAccount,
           new PublicKey(walletKey),
-          Number(sendAmount) * Math.pow(10, tokenInfo.decimals)
+          toAtomicUnits(sendAmount, tokenInfo.decimals)
         );
         instructions.push(transferInstruction);
       }

@@ -20,7 +20,12 @@ import { blue, grey } from "@mui/material/colors";
 import Balance from "./Balance";
 import { NumberTextField } from "./NumberTextField";
 import axios from "axios";
-import { updateNetworkFee, fetchQuote } from "@/app/lib/constants";
+import {
+  updateNetworkFee,
+  fetchQuote,
+  ACCOUNT_CREATION_FEE,
+  toAtomicUnits,
+} from "@/app/lib/constants";
 import { Page } from "./ProfileData";
 import { TokenSelector } from "./TokenSelector";
 import TransactionStatus from "./TransactionStatus";
@@ -92,9 +97,7 @@ export default function Swap({
     quoteAssetDecimals = SUPPORTED_TOKENS.find(
       (t) => t.symbol === quoteAsset
     )?.decimals;
-    const amount = Math.floor(
-      parseFloat(baseAmount.toString()) * 10 ** (baseAssetDecimals ?? 0)
-    );
+    const amount = toAtomicUnits(baseAmount, baseAssetDecimals ?? 0);
 
     fetchQuote(
       setQuoteAmount,
@@ -326,9 +329,10 @@ export default function Swap({
                     );
 
                     if (baseAsset === "SOL") {
-                      const accountCreationFee = 0.00203928; 
+                      const accountCreationFeeInSol =
+                        ACCOUNT_CREATION_FEE / 1e9;
                       const totalFeesToReserve =
-                        maxNetworkFee + accountCreationFee;
+                        maxNetworkFee + accountCreationFeeInSol;
                       const maxSwapAmount = Math.max(
                         0,
                         currentBalance - totalFeesToReserve

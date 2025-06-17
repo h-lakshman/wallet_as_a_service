@@ -16,7 +16,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { Page } from "./ProfileData";
 import { Token } from "@/app/lib/supportedTokens";
 import { TokenSelector } from "./TokenSelector";
-import { updateNetworkFee } from "@/app/lib/constants";
+import { updateNetworkFee, ACCOUNT_CREATION_FEE } from "@/app/lib/constants";
 import axios from "axios";
 import TransactionStatus from "./TransactionStatus";
 
@@ -53,7 +53,7 @@ export default function Send({
   const [maxNetworkFee, setMaxNetworkFee] = useState<number>(0);
   const [insufficientSolForFee, setInsufficientSolForFee] = useState(false);
   const [estimatedNetworkFee, setEstimatedNetworkFee] = useState<number>(0);
-  const [accountCreationFee] = useState(0.00203928); // ~2039280 lamports
+  const [accountCreationFee] = useState(ACCOUNT_CREATION_FEE / 1e9); // Convert lamports to SOL
   const [transactionStatus, setTransactionStatus] = useState<
     "pending" | "success" | "error" | null
   >(null);
@@ -85,7 +85,11 @@ export default function Send({
       setMaxNetworkFee,
       setInsufficientSolForFee
     );
-  }, [selectedAsset, tokenBalances]);
+    // Re-validate balance whenever network fees change
+    if (amount) {
+      setTimeout(() => validateBalance(), 100); // Small delay to ensure fee states are updated
+    }
+  }, [selectedAsset, tokenBalances, maxNetworkFee]);
 
   useEffect(() => {
     if (tokenBalances.length > 0) {
@@ -95,46 +99,89 @@ export default function Send({
         setMaxNetworkFee,
         setInsufficientSolForFee
       );
+      // Re-validate balance whenever network fees change
+      if (amount) {
+        setTimeout(() => validateBalance(), 100); // Small delay to ensure fee states are updated
+      }
     }
-  }, [tokenBalances]);
+  }, [tokenBalances, maxNetworkFee]);
+
+  // Comprehensive balance validation function
+  const validateBalance = (amountToSend: string = amount) => {
+    if (!amountToSend || amountToSend === "0") {
+      setInsufficientFunds(false);
+      setInsufficientSolForFee(false);
+      return;
+    }
+
+    const currentBalance = Number(
+      tokenBalances.find((t: any) => t.token_name === selectedAsset)
+        ?.token_balance
+    );
+
+    console.log("🔍 Balance Validation:", {
+      selectedAsset,
+      amountToSend,
+      currentBalance,
+      maxNetworkFee,
+      accountCreationFee,
+      tokenBalances: tokenBalances.map((t) => ({
+        name: t.token_name,
+        balance: t.token_balance,
+      })),
+    });
+
+    if (selectedAsset === "SOL") {
+      const sendAmount = Number(amountToSend);
+      const totalRequired = sendAmount + maxNetworkFee + accountCreationFee;
+
+      console.log("💰 SOL Transaction:", {
+        sendAmount,
+        maxNetworkFee,
+        accountCreationFee,
+        totalRequired,
+        currentBalance,
+        isInsufficient: currentBalance < totalRequired,
+      });
+
+      if (currentBalance < totalRequired) {
+        setInsufficientFunds(true);
+        setInsufficientSolForFee(false);
+      } else {
+        setInsufficientFunds(false);
+        setInsufficientSolForFee(false);
+      }
+    } else {
+      const solBalance = Number(
+        tokenBalances.find((t: any) => t.token_name === "SOL")?.token_balance
+      );
+
+      // Check token balance
+      const hasInsufficientTokens = Number(amountToSend) > currentBalance;
+
+      // For SPL tokens, check if we have enough SOL for fees and potential account creation
+      const totalSolRequired = maxNetworkFee + accountCreationFee;
+      const hasInsufficientSolForFees = solBalance < totalSolRequired;
+
+      console.log("🪙 Token Transaction:", {
+        tokenAmount: amountToSend,
+        tokenBalance: currentBalance,
+        hasInsufficientTokens,
+        solBalance,
+        totalSolRequired,
+        hasInsufficientSolForFees,
+      });
+
+      setInsufficientFunds(hasInsufficientTokens);
+      setInsufficientSolForFee(hasInsufficientSolForFees);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "" || !isNaN(Number(value))) {
       setAmount(value);
-
-      const currentBalance = Number(
-        tokenBalances.find((t: any) => t.token_name === selectedAsset)
-          ?.token_balance
-      );
-
-      if (selectedAsset === "SOL") {
-        const sendAmount = Number(value);
-        const totalRequired = sendAmount + maxNetworkFee + accountCreationFee;
-
-        if (currentBalance < totalRequired) {
-          setInsufficientFunds(true);
-          setInsufficientSolForFee(false);
-        } else {
-          setInsufficientFunds(false);
-          setInsufficientSolForFee(false);
-        }
-      } else {
-        const solBalance = Number(
-          tokenBalances.find((t: any) => t.token_name === "SOL")?.token_balance
-        );
-
-        // Check token balance
-        const hasInsufficientTokens = Number(value) > currentBalance;
-
-        // For SPL tokens, assume we might need to create an account for the recipient
-        // This is a conservative approach - actual requirement depends on recipient's account status
-        const totalSolRequired = maxNetworkFee + accountCreationFee;
-        const hasInsufficientSolForFees = solBalance < totalSolRequired;
-
-        setInsufficientFunds(hasInsufficientTokens);
-        setInsufficientSolForFee(hasInsufficientSolForFees);
-      }
+      validateBalance(value);
     }
   };
 
@@ -144,6 +191,40 @@ export default function Send({
   const usdValue = parseFloat(amount || "0") * Number(selectedTokenPrice || 0);
 
   const onConfirm = async () => {
+    // Final validation check before submitting
+    validateBalance();
+
+    // Double-check that we don't have insufficient funds
+    if (insufficientFunds || insufficientSolForFee) {
+      console.warn("Transaction blocked: Insufficient funds detected");
+      setTransactionStatus("error");
+      setTransactionStatusBar(false);
+      return;
+    }
+
+    // Additional manual validation using current values
+    const currentBalance = Number(
+      tokenBalances.find((t: any) => t.token_name === selectedAsset)
+        ?.token_balance
+    );
+
+    if (selectedAsset === "SOL") {
+      const sendAmount = Number(amount);
+      const totalRequired = sendAmount + maxNetworkFee + accountCreationFee;
+
+      if (currentBalance < totalRequired) {
+        console.warn(
+          `Transaction blocked: Need ${totalRequired.toFixed(
+            6
+          )} SOL but only have ${currentBalance.toFixed(6)} SOL`
+        );
+        setInsufficientFunds(true);
+        setTransactionStatus("error");
+        setTransactionStatusBar(false);
+        return;
+      }
+    }
+
     try {
       setTransactionStatus("pending");
       setTransactionStatusBar(true);

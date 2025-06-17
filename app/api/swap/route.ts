@@ -6,6 +6,7 @@ import {
   BASE_PRIORITY_FEE,
   getOptimalPriorityFee,
   SOLANA_RPC_URL,
+  ACCOUNT_CREATION_FEE,
 } from "@/app/lib/constants";
 import { signTransactionMPC } from "@/app/lib/mpc-key-manager";
 import prisma from "@/prisma";
@@ -45,8 +46,7 @@ export async function POST(request: NextRequest) {
     quoteResponse.inputMint === "So11111111111111111111111111111111111111112"
   ) {
     const swapAmount = parseInt(quoteResponse.inAmount);
-    const accountCreationFee = 2039280; // Token account creation
-    const totalRequired = swapAmount + accountCreationFee + maxPossibleFee;
+    const totalRequired = swapAmount + ACCOUNT_CREATION_FEE + maxPossibleFee;
 
     if (solBalance < totalRequired) {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
           currentBalance: solBalance / 1e9,
           breakdown: {
             swapAmount: swapAmount / 1e9,
-            accountCreationFee: accountCreationFee / 1e9,
+            accountCreationFee: ACCOUNT_CREATION_FEE / 1e9,
             maxNetworkFees: maxPossibleFee / 1e9,
           },
         },
@@ -141,9 +141,8 @@ export async function POST(request: NextRequest) {
         const balance = await connection.getBalance(new PublicKey(walletKey));
 
         const swapAmount = parseInt(quoteResponse.inAmount);
-        const accountCreationFee = 2039280; // ~0.002 SOL for token account creation
         const networkFees = finalPriorityFee + 5000; // Priority fee + base transaction fee
-        const totalRequired = swapAmount + accountCreationFee + networkFees;
+        const totalRequired = swapAmount + ACCOUNT_CREATION_FEE + networkFees;
 
         if (balance < totalRequired) {
           return NextResponse.json(
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
               currentBalance: balance / 1e9,
               breakdown: {
                 swapAmount: swapAmount / 1e9,
-                accountCreationFee: accountCreationFee / 1e9,
+                accountCreationFee: ACCOUNT_CREATION_FEE / 1e9,
                 networkFees: networkFees / 1e9,
               },
             },
