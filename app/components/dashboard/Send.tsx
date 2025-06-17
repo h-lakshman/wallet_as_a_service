@@ -258,11 +258,11 @@ export default function Send({
       <Paper
         elevation={2}
         sx={{
-          p: 2.5,
-          borderRadius: 2.5,
+          p: 3,
+          borderRadius: 3,
           border: "1px solid",
           borderColor: grey[200],
-          mb: 2,
+          mb: 4,
         }}
       >
         <Balance
@@ -273,7 +273,18 @@ export default function Send({
         />
       </Paper>
 
-      <Box sx={{ maxWidth: 800, width: "100%", mx: "auto" }}>
+      <Paper
+        elevation={2}
+        sx={{
+          p: 4,
+          borderRadius: 3,
+          border: "1px solid",
+          borderColor: grey[200],
+          maxWidth: 800,
+          width: "100%",
+          mx: "auto",
+        }}
+      >
         {/* Transaction Status */}
         <TransactionStatus
           transactionStatus={transactionStatus}
@@ -319,7 +330,7 @@ export default function Send({
             mb: 1,
           }}
         >
-          Send to Solana Wallet Address
+          Send & Withdraw Funds
         </Typography>
 
         <Typography
@@ -330,7 +341,8 @@ export default function Send({
             mb: 4,
           }}
         >
-          Send funds to a Solana wallet address you specify.
+          Send funds to any Solana wallet address or withdraw to your external
+          wallet.
         </Typography>
 
         {/* Asset Selector */}
@@ -575,7 +587,7 @@ export default function Send({
               : "✓ Confirm Send"}
           </Button>
         </Box>
-      </Box>
+      </Paper>
     </Container>
   );
 }

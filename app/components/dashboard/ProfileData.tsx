@@ -21,8 +21,9 @@ import Tokens from "./Tokens";
 import Swap from "./Swap";
 import Balance from "./Balance";
 import Send from "./Send";
+import AddFunds from "./AddFunds";
 
-export type Page = "tokens" | "send" | "addFunds" | "withdraw" | "swap";
+export type Page = "tokens" | "send" | "addFunds" | "swap";
 
 export default function ProfileData() {
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function ProfileData() {
       {/* Action Buttons */}
       {selectedPage === "tokens" && (
         <Grid container spacing={2} sx={{ px: 6 }}>
-          <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <Button
               variant="contained"
               fullWidth
@@ -98,10 +99,10 @@ export default function ProfileData() {
               sx={{ height: "48px" }}
               onClick={() => setSelectedPage("send")}
             >
-              Send
+              Send / Withdraw
             </Button>
           </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <Button
               variant="outlined"
               fullWidth
@@ -112,18 +113,7 @@ export default function ProfileData() {
               Add Funds
             </Button>
           </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
-            <Button
-              variant="outlined"
-              fullWidth
-              startIcon={<LogoutIcon />}
-              sx={{ height: "48px" }}
-              onClick={() => setSelectedPage("withdraw")}
-            >
-              Withdraw
-            </Button>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 3 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <Button
               variant="outlined"
               fullWidth
@@ -157,6 +147,16 @@ export default function ProfileData() {
       )}
       {selectedPage === "send" && (
         <Send
+          isLoading={isLoading}
+          totalUsdBalance={totalUsdBalance}
+          tokenBalances={tokenBalances}
+          snackbarOpen={snackbarOpen}
+          setSnackbarOpen={setSnackbarOpen}
+          setSelectedPage={setSelectedPage}
+        />
+      )}
+      {selectedPage === "addFunds" && (
+        <AddFunds
           isLoading={isLoading}
           totalUsdBalance={totalUsdBalance}
           tokenBalances={tokenBalances}
